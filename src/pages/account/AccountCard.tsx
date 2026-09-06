@@ -12,7 +12,21 @@ export function AccountCard({ title, subtitle, children }: { title: string; subt
   );
 }
 
-export function AccountField({ label, type = "text", name }: { label: string; type?: string; name: string }) {
+export function AccountField({
+  label,
+  type = "text",
+  name,
+  value,
+  onChange,
+  required,
+}: {
+  label: string;
+  type?: string;
+  name: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  required?: boolean;
+}) {
   return (
     <div>
       <label className="mb-1.5 block text-sm text-ink-soft" htmlFor={name}>
@@ -22,6 +36,9 @@ export function AccountField({ label, type = "text", name }: { label: string; ty
         id={name}
         name={name}
         type={type}
+        value={value}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        required={required}
         className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink focus:border-lime"
       />
     </div>
