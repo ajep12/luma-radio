@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32">
+  <rect width="120" height="32" rx="6" fill="#08090b"/>
+  <circle cx="16" cy="16" r="9" fill="#c8f24d"/>
+  <circle cx="16" cy="16" r="3" fill="#08090b"/>
+  <text x="34" y="21" font-family="Arial, sans-serif" font-size="14" fill="#f4f5f1" font-weight="700">Luma Radio</text>
+</svg>
