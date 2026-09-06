@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    background-color: #08090b;
+  }
+  ::selection {
+    background-color: #c8f24d;
+    color: #08090b;
+  }
+  :focus-visible {
+    outline: 2px solid #c8f24d;
+    outline-offset: 2px;
+  }
+}
+
+/* Used by the Waveform component via an inline `animation: bar ...` style
+   (not a Tailwind utility class), so it's defined directly here rather
+   than relying on Tailwind's config-driven, usage-scanned keyframes. */
+@keyframes bar {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Range input (volume) thumb styling */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #c8f24d;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 9999px;
+  background: #c8f24d;
+  cursor: pointer;
+}
