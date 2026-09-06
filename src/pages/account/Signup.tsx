@@ -1,78 +1,80 @@
-import { FormEvent, useState } from "react";
-import { Link } from "react-router-dom";
-import { AccountCard, AccountField } from "./AccountCard";
-import { useAuth } from "../../context/AuthContext";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { PlayerProvider } from "./context/PlayerContext";
+import { AuthProvider } from "./context/AuthContext";
+import { SiteLayout } from "./SiteLayout";
 
-export function Signup() {
-  const { signUp, isConfigured } = useAuth();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [confirmSent, setConfirmSent] = useState(false);
+import { Home } from "./pages/Home";
+import { ListenLive } from "./pages/ListenLive";
+import { Schedule } from "./pages/Schedule";
+import { Shows } from "./pages/Shows";
+import { ShowDetail } from "./pages/ShowDetail";
+import { Presenters } from "./pages/Presenters";
+import { RecentlyPlayed } from "./pages/RecentlyPlayed";
+import { Requests } from "./pages/Requests";
+import { Search } from "./pages/Search";
+import { Contact } from "./pages/Contact";
+import { Privacy } from "./pages/Privacy";
+import { Terms } from "./pages/Terms";
+import { NotFound } from "./pages/NotFound";
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    const { error } = await signUp(email, password, name);
-    setSubmitting(false);
-    if (error) {
-      setError(error);
-      return;
-    }
-    setConfirmSent(true);
-  }
+import { Login } from "./pages/account/Login";
+import { Signup } from "./pages/account/Signup";
+import { Profile } from "./pages/account/Profile";
+import { AccountSettings } from "./pages/account/AccountSettings";
 
-  if (confirmSent) {
-    return (
-      <AccountCard title="Almost there" subtitle="Confirm your email to finish creating your account.">
-        <p className="text-sm text-ink-faint">
-          We've sent a confirmation link to <span className="text-ink">{email}</span>. Once you
-          confirm it, you can{" "}
-          <Link to="/account/login" className="text-lime hover:underline">
-            log in
-          </Link>
-          .
-        </p>
-      </AccountCard>
-    );
-  }
+import { AdminLayout } from "./pages/admin/AdminLayout";
+import { Dashboard } from "./pages/admin/Dashboard";
+import { ShowsAdmin } from "./pages/admin/ShowsAdmin";
+import { PresentersAdmin } from "./pages/admin/PresentersAdmin";
+import { ScheduleAdmin } from "./pages/admin/ScheduleAdmin";
+import { Announcements } from "./pages/admin/Announcements";
+import { AdvertisementsAdmin } from "./pages/admin/AdvertisementsAdmin";
+import { Pages } from "./pages/admin/Pages";
+import { Users } from "./pages/admin/Users";
+import { Settings } from "./pages/admin/Settings";
 
+export default function App() {
   return (
-    <AccountCard title="Create your account" subtitle="Join Luma Radio.">
-      {!isConfigured && (
-        <p className="mb-4 rounded-lg border border-base-line bg-base px-3 py-2 text-xs text-ink-faint">
-          Accounts aren't set up yet — add your Supabase details to get signup working.
-        </p>
-      )}
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <AccountField label="Name" name="name" value={name} onChange={setName} required />
-        <AccountField label="Email" name="email" type="email" value={email} onChange={setEmail} required />
-        <AccountField
-          label="Password"
-          name="password"
-          type="password"
-          value={password}
-          onChange={setPassword}
-          required
-        />
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-full bg-lime py-3 text-sm font-semibold text-coal transition-transform hover:scale-[1.01] disabled:opacity-60"
-        >
-          {submitting ? "Creating account…" : "Create account"}
-        </button>
-      </form>
-      <p className="mt-5 text-center text-sm text-ink-faint">
-        Already have an account?{" "}
-        <Link to="/account/login" className="text-lime hover:underline">
-          Log in
-        </Link>
-      </p>
-    </AccountCard>
+    <AuthProvider>
+      <PlayerProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<SiteLayout />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/listen" element={<ListenLive />} />
+              <Route path="/schedule" element={<Schedule />} />
+              <Route path="/shows" element={<Shows />} />
+              <Route path="/shows/:showId" element={<ShowDetail />} />
+              <Route path="/presenters" element={<Presenters />} />
+              <Route path="/recently-played" element={<RecentlyPlayed />} />
+              <Route path="/requests" element={<Requests />} />
+              <Route path="/search" element={<Search />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
+
+              <Route path="/account/login" element={<Login />} />
+              <Route path="/account/signup" element={<Signup />} />
+              <Route path="/account/profile" element={<Profile />} />
+              <Route path="/account/settings" element={<AccountSettings />} />
+
+              <Route path="*" element={<NotFound />} />
+            </Route>
+
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="shows" element={<ShowsAdmin />} />
+              <Route path="presenters" element={<PresentersAdmin />} />
+              <Route path="schedule" element={<ScheduleAdmin />} />
+              <Route path="announcements" element={<Announcements />} />
+              <Route path="advertisements" element={<AdvertisementsAdmin />} />
+              <Route path="pages" element={<Pages />} />
+              <Route path="users" element={<Users />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </PlayerProvider>
+    </AuthProvider>
   );
 }
