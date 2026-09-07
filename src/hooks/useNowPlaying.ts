@@ -12,28 +12,27 @@ export interface NowPlayingData {
 
 interface NowPlayingState {
   data: NowPlayingData | null;
-  /** True once we've configured a Now Playing endpoint but haven't heard back yet. */
   loading: boolean;
-  /** True if a fetch to the configured endpoint failed. */
   error: boolean;
 }
 
-/**
- * Polls RadioCast's Now Playing endpoint, if one has been configured in
- * `.env` (VITE_RADIOCAST_NOW_PLAYING_URL). This hook deliberately does NOT
- * assume a response shape, because that shape is defined by RadioCast, not
- * by this project.
- *
- * TO CONNECT YOUR REAL RADIOCAST NOW PLAYING API:
- * 1. Set VITE_RADIOCAST_NOW_PLAYING_URL in your `.env`.
- * 2. Map the JSON RadioCast actually returns onto `NowPlayingData` inside
- *    the `mapResponse` function below — this is the one place that needs
- *    your endpoint's real field names.
- *
- * Until step 2 is done for your endpoint, or if no endpoint is configured,
- * this hook returns `data: null` and the UI shows the station identity
- * instead of any invented "now playing" details.
- */
+interface RadioCastNowPlayingResponse {
+  now_playing?: {
+    song?: {
+      title?: string;
+      artist?: string;
+      art?: string;
+    };
+  };
+  live?: {
+    is_live?: boolean;
+    streamer_name?: string;
+  };
+  listeners?: {
+    current?: number;
+  };
+}
+
 export function useNowPlaying(): NowPlayingState {
   const [state, setState] = useState<NowPlayingState>({
     data: null,
@@ -74,23 +73,16 @@ export function useNowPlaying(): NowPlayingState {
   return state;
 }
 
-/**
- * ---------------------------------------------------------------------------
- * MAP YOUR REAL RADIOCAST RESPONSE HERE.
- * ---------------------------------------------------------------------------
- * This function currently returns an empty object because we don't know the
- * shape of your RadioCast Now Playing response. Replace the body with real
- * field mappings once you have your RadioCast API documentation, e.g.:
- *
- *   return {
- *     song: json.now_playing?.song?.title,
- *     artist: json.now_playing?.song?.artist,
- *     artwork: json.now_playing?.song?.art,
- *     presenter: json.live?.streamer_name,
- *     showName: json.live?.show_name,
- *     listeners: json.listeners?.current,
- *   };
- */
-function mapResponse(_json: unknown): NowPlayingData {
-  return {};
+function mapResponse(json: unknown): NowPlayingData {
+  const data = json as RadioCastNowPlayingResponse;
+  const song = data.now_playing?.song;
+  const isLive = data.live?.is_live === true;
+
+  return {
+    song: song?.title,
+    artist: song?.artist,
+    artwork: song?.art,
+    presenter: isLive ? data.live?.streamer_name || undefined : undefined,
+    listeners: data.listeners?.current,
+  };
 }
