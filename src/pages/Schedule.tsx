@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { supabase, isSupabaseConfigured } from "../config/supabase";
+import { ScheduleRail } from "../components/schedule/ScheduleRail";
 
 const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -19,12 +19,7 @@ type ScheduleEntry = {
   date: string;
   start_time: string;
   end_time: string | null;
-  show_id: string;
-  show: {
-    id: string;
-    name: string;
-    artwork: string;
-  } | null;
+  show_name: string;
 };
 
 function getMonday(date: Date) {
@@ -40,7 +35,11 @@ function getMonday(date: Date) {
 }
 
 function formatDate(date: Date) {
-  return date.toISOString().split("T")[0];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function formatTime(time: string) {
@@ -59,6 +58,7 @@ function getDateForDay(monday: Date, day: string) {
 export function Schedule() {
   const [day, setDay] = useState(() => {
     const index = new Date().getDay();
+
     return weekDays[index === 0 ? 6 : index - 1];
   });
 
@@ -93,18 +93,9 @@ export function Schedule() {
 
       const { data, error: supabaseError } = await supabase
         .from("schedule")
-        .select(`
-          id,
-          date,
-          start_time,
-          end_time,
-          show_id,
-          show:shows (
-            id,
-            name,
-            artwork
-          )
-        `)
+        .select(
+          "id, date, start_time, end_time, show_name"
+        )
         .gte("date", weekStart)
         .lte("date", formatDate(weekEnd))
         .order("date")
@@ -122,7 +113,10 @@ export function Schedule() {
         return;
       }
 
-      setSchedule((data ?? []) as ScheduleEntry[]);
+      setSchedule(
+        (data ?? []) as ScheduleEntry[]
+      );
+
       setLoading(false);
     }
 
@@ -130,7 +124,8 @@ export function Schedule() {
   }, [monday]);
 
   const selectedDaySchedule = schedule.filter(
-    (entry) => entry.date === formatDate(selectedDate)
+    (entry) =>
+      entry.date === formatDate(selectedDate)
   );
 
   function previousWeek() {
@@ -151,7 +146,10 @@ export function Schedule() {
     setMonday(getMonday(today));
 
     const index = today.getDay();
-    setDay(weekDays[index === 0 ? 6 : index - 1]);
+
+    setDay(
+      weekDays[index === 0 ? 6 : index - 1]
+    );
   }
 
   return (
@@ -184,13 +182,14 @@ export function Schedule() {
               month: "short",
             })}
             {" – "}
-            {new Date(
-              monday.getTime() + 6 * 86400000
-            ).toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
+            {getDateForDay(monday, 6).toLocaleDateString(
+              "en-GB",
+              {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              }
+            )}
           </p>
 
           <button
@@ -225,6 +224,7 @@ export function Schedule() {
               }`}
             >
               <span>{d}</span>
+
               <span className="ml-1 opacity-60">
                 {date.getDate()}
               </span>
@@ -237,6 +237,7 @@ export function Schedule() {
       <div className="mt-8">
         <h2 className="mb-4 font-display text-xl text-ink">
           {fullDayNames[day]}
+
           <span className="ml-2 text-sm font-normal text-ink-faint">
             {selectedDate.toLocaleDateString("en-GB", {
               day: "numeric",
@@ -258,47 +259,46 @@ export function Schedule() {
             Nothing scheduled for this day yet.
           </p>
         ) : (
-          <div className="divide-y divide-base-line rounded-2xl border border-base-line">
-            {selectedDaySchedule.map((slot) => {
-              if (!slot.show) return null;
+          <>
+            {/* Mobile */}
+            <div className="sm:hidden">
+              <ScheduleRail
+                schedule={selectedDaySchedule}
+              />
+            </div>
 
-              return (
-                <Link
+            {/* Desktop */}
+            <div className="hidden divide-y divide-base-line rounded-2xl border border-base-line sm:block">
+              {selectedDaySchedule.map((slot) => (
+                <div
                   key={slot.id}
-                  to={`/shows/${slot.show.id}`}
                   className="flex items-center gap-5 px-6 py-4 transition-colors hover:bg-base-panel"
                 >
-                  <div className="w-20 shrink-0">
+                  <div className="w-28 shrink-0">
                     <p className="font-display text-sm text-lime">
                       {formatTime(slot.start_time)}
                     </p>
 
                     {slot.end_time && (
-                      <p className="mt-0.5 text-xs text-ink-faint">
+                      <p className="text-xs text-ink-faint">
                         until {formatTime(slot.end_time)}
                       </p>
                     )}
                   </div>
 
-                  <img
-                    src={slot.show.artwork}
-                    alt=""
-                    className="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-base-line"
-                  />
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-base-raised font-display text-sm text-ink-faint">
+                    L
+                  </div>
 
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-ink">
-                      {slot.show.name}
+                      {slot.show_name}
                     </p>
                   </div>
-
-                  <span className="shrink-0 text-xs text-ink-faint">
-                    Details →
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>
