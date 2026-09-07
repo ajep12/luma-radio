@@ -28,18 +28,27 @@ export function ShowsAdmin() {
   const { shows, loading } = useShows();
 
   const [editingShow, setEditingShow] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const selectedShow = shows.find(
     (show) => show.id === editingShow
   );
 
+  function refreshShows() {
+    setEditingShow(null);
+    setRefreshKey((value) => value + 1);
+  }
+
   return (
-    <div>
+    <div key={refreshKey}>
       <AdminHeading
         title="Shows"
         subtitle="Manage Luma Radio's show lineup."
         action={
-          <button className="rounded-full bg-lime px-4 py-2 text-sm font-semibold text-coal">
+          <button
+            type="button"
+            className="rounded-full bg-lime px-4 py-2 text-sm font-semibold text-coal"
+          >
             Add show
           </button>
         }
@@ -69,7 +78,7 @@ export function ShowsAdmin() {
 
           <EditShowForm
             show={selectedShow}
-            onSaved={() => setEditingShow(null)}
+            onSaved={refreshShows}
           />
         </div>
       )}
@@ -116,11 +125,15 @@ export function ShowsAdmin() {
                 return (
                   <tr key={show.id}>
                     <td className="flex items-center gap-3 px-5 py-3">
-                      <img
-                        src={show.artwork}
-                        alt=""
-                        className="h-9 w-9 rounded-lg object-cover"
-                      />
+                      {show.artwork ? (
+                        <img
+                          src={show.artwork}
+                          alt=""
+                          className="h-9 w-9 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="h-9 w-9 rounded-lg bg-base-raised" />
+                      )}
 
                       <span className="text-ink">
                         {show.name}
@@ -128,7 +141,7 @@ export function ShowsAdmin() {
                     </td>
 
                     <td className="px-5 py-3 text-ink-soft">
-                      {presenter?.name ?? "Unknown presenter"}
+                      {presenter?.name ?? "No presenter"}
                     </td>
 
                     <td className="px-5 py-3 text-ink-soft">
@@ -136,19 +149,26 @@ export function ShowsAdmin() {
                     </td>
 
                     <td className="px-5 py-3 text-ink-soft">
-                      {show.days.join(", ")}
+                      {show.days?.join(", ") || "No days"}
                     </td>
 
                     <td className="px-5 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditingShow(show.id)
-                        }
-                        className="text-xs font-medium text-lime hover:underline"
-                      >
-                        Edit
-                      </button>
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingShow(show.id)
+                          }
+                          className="text-xs font-medium text-lime hover:underline"
+                        >
+                          Edit
+                        </button>
+
+                        <DeleteShowButton
+                          show={show}
+                          onDeleted={refreshShows}
+                        />
+                      </div>
                     </td>
                   </tr>
                 );
@@ -178,12 +198,11 @@ function EditShowForm({
     Array.isArray(show.days) ? show.days : []
   );
   const [presenterId, setPresenterId] = useState(
-    show.presenterId
+    show.presenterId || ""
   );
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
 
   function toggleDay(day: string) {
     setDays((current) =>
@@ -194,33 +213,52 @@ function EditShowForm({
   }
 
   async function save() {
+    if (!name.trim()) {
+      setError("Show name is required.");
+      return;
+    }
+
     setSaving(true);
     setError("");
-    setSuccess(false);
 
     try {
-      const { error: updateError } = await supabase
+      const updateData = {
+        name: name.trim(),
+        artwork: artwork.trim(),
+        description: description.trim(),
+        time: time.trim(),
+        days,
+        presenter_id: presenterId || null,
+      };
+
+      console.log("[Supabase] Updating show:", show.id);
+      console.log("[Supabase] Data:", updateData);
+
+      const { data, error: updateError } = await supabase
         .from("shows")
-        .update({
-          name: name.trim(),
-          artwork: artwork.trim(),
-          description: description.trim(),
-          time: time.trim(),
-          days,
-          presenter_id: presenterId || null,
-        })
-        .eq("id", show.id);
+        .update(updateData)
+        .eq("id", show.id)
+        .select()
+        .single();
 
       if (updateError) {
-        throw updateError;
+        console.error(
+          "[Supabase] Update failed:",
+          updateError
+        );
+
+        throw new Error(
+          updateError.message ||
+            "Supabase refused to update this show."
+        );
       }
 
-      setSuccess(true);
+      console.log(
+        "[Supabase] Show updated successfully:",
+        data
+      );
 
       onSaved();
-
-      // Refresh so useShows loads the newly saved data.
-      window.location.reload();
     } catch (err) {
       console.error(
         "[Supabase] Failed to update show:",
@@ -239,7 +277,6 @@ function EditShowForm({
 
   return (
     <div className="grid gap-5">
-      {/* Show name */}
       <label className="grid gap-2">
         <span className="text-sm font-medium text-ink">
           Show name
@@ -253,7 +290,6 @@ function EditShowForm({
         />
       </label>
 
-      {/* Artwork */}
       <label className="grid gap-2">
         <span className="text-sm font-medium text-ink">
           Artwork URL
@@ -275,7 +311,6 @@ function EditShowForm({
         )}
       </label>
 
-      {/* Description */}
       <label className="grid gap-2">
         <span className="text-sm font-medium text-ink">
           Description
@@ -292,7 +327,6 @@ function EditShowForm({
         />
       </label>
 
-      {/* Time */}
       <label className="grid gap-2">
         <span className="text-sm font-medium text-ink">
           Time
@@ -306,7 +340,6 @@ function EditShowForm({
         />
       </label>
 
-      {/* Presenter */}
       <label className="grid gap-2">
         <span className="text-sm font-medium text-ink">
           Presenter
@@ -332,7 +365,6 @@ function EditShowForm({
         </select>
       </label>
 
-      {/* Days */}
       <div className="grid gap-2">
         <span className="text-sm font-medium text-ink">
           Days
@@ -360,21 +392,12 @@ function EditShowForm({
         </div>
       </div>
 
-      {/* Errors */}
       {error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
           {error}
         </div>
       )}
 
-      {/* Success */}
-      {success && (
-        <div className="rounded-xl border border-lime/30 bg-lime/10 px-4 py-3 text-sm text-lime">
-          Show saved successfully.
-        </div>
-      )}
-
-      {/* Save */}
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -394,6 +417,92 @@ function EditShowForm({
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+function DeleteShowButton({
+  show,
+  onDeleted,
+}: {
+  show: Show;
+  onDeleted: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function deleteShow() {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${show.name}"?\n\nThis cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleting(true);
+    setError("");
+
+    try {
+      console.log(
+        "[Supabase] Deleting show:",
+        show.id
+      );
+
+      const { error: deleteError } = await supabase
+        .from("shows")
+        .delete()
+        .eq("id", show.id);
+
+      if (deleteError) {
+        console.error(
+          "[Supabase] Delete failed:",
+          deleteError
+        );
+
+        throw new Error(
+          deleteError.message ||
+            "Supabase refused to delete this show."
+        );
+      }
+
+      console.log(
+        "[Supabase] Show deleted successfully"
+      );
+
+      onDeleted();
+    } catch (err) {
+      console.error(
+        "[Supabase] Failed to delete show:",
+        err
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to delete the show."
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={deleteShow}
+        disabled={deleting}
+        className="text-xs font-medium text-red-400 hover:underline disabled:opacity-50"
+      >
+        {deleting ? "Deleting..." : "Delete"}
+      </button>
+
+      {error && (
+        <span className="text-xs text-red-400">
+          {error}
+        </span>
+      )}
     </div>
   );
 }
