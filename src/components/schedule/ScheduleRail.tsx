@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 type ScheduleEntry = {
   id: string;
@@ -45,13 +45,12 @@ function isSlotLive(
 }
 
 export function ScheduleRail({
-  schedule,
+  schedule = [],
 }: {
-  schedule: ScheduleEntry[];
+  schedule?: ScheduleEntry[];
 }) {
   const [, setCurrentTime] = useState(Date.now());
 
-  // Refresh every minute so "On air" updates automatically
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
@@ -60,7 +59,11 @@ export function ScheduleRail({
     return () => clearInterval(interval);
   }, []);
 
-  if (schedule.length === 0) {
+  const safeSchedule = Array.isArray(schedule)
+    ? schedule
+    : [];
+
+  if (safeSchedule.length === 0) {
     return (
       <p className="text-sm text-ink-faint">
         Nothing scheduled — check back on another day.
@@ -70,7 +73,7 @@ export function ScheduleRail({
 
   return (
     <div className="flex snap-x gap-3 overflow-x-auto pb-2">
-      {schedule.map((slot) => {
+      {safeSchedule.map((slot) => {
         const live = isSlotLive(
           slot.start_time,
           slot.end_time,
@@ -86,7 +89,6 @@ export function ScheduleRail({
                 : "border-base-line bg-base-panel hover:border-base-line/60"
             }`}
           >
-            {/* Time + live indicator */}
             <div className="flex items-center justify-between">
               <span
                 className={`font-display text-sm ${
@@ -109,7 +111,6 @@ export function ScheduleRail({
               )}
             </div>
 
-            {/* Show */}
             <div className="flex items-center gap-3">
               <div
                 className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-xs font-medium ${
@@ -138,7 +139,6 @@ export function ScheduleRail({
               </div>
             </div>
 
-            {/* Current show indicator */}
             {live && (
               <div className="rounded-lg bg-lime/10 px-3 py-2 text-xs text-lime">
                 Currently playing
