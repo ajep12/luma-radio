@@ -1,9 +1,15 @@
+import { useState } from "react";
 import { useShows } from "../../hooks/useShows";
 import { presenters } from "../../data/presenters";
 import { AdminHeading } from "./AdminHeading";
 
 export function ShowsAdmin() {
   const { shows, loading } = useShows();
+  const [editingShow, setEditingShow] = useState<string | null>(null);
+
+  const selectedShow = shows.find(
+    (show) => show.id === editingShow
+  );
 
   return (
     <div>
@@ -17,14 +23,37 @@ export function ShowsAdmin() {
         }
       />
 
+      {selectedShow && (
+        <div className="mb-6 rounded-2xl border border-base-line bg-base-panel p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="font-display text-xl text-ink">
+                Edit show
+              </h2>
+              <p className="text-sm text-ink-faint">
+                Update the show's information.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setEditingShow(null)}
+              className="text-sm text-ink-faint hover:text-ink"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <EditShowForm
+            show={selectedShow}
+            onSaved={() => setEditingShow(null)}
+          />
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-2xl border border-base-line">
         {loading ? (
           <div className="px-5 py-8 text-sm text-ink-faint">
             Loading shows...
-          </div>
-        ) : shows.length === 0 ? (
-          <div className="px-5 py-8 text-sm text-ink-faint">
-            No shows found.
           </div>
         ) : (
           <table className="w-full text-left text-sm">
@@ -71,7 +100,10 @@ export function ShowsAdmin() {
                     </td>
 
                     <td className="px-5 py-3 text-right">
-                      <button className="text-xs font-medium text-lime hover:underline">
+                      <button
+                        onClick={() => setEditingShow(show.id)}
+                        className="text-xs font-medium text-lime hover:underline"
+                      >
                         Edit
                       </button>
                     </td>
