@@ -2,7 +2,7 @@ import { useNowPlaying } from "../hooks/useNowPlaying";
 import { PlaceholderBadge } from "../components/common/PlaceholderBadge";
 
 export function RecentlyPlayed() {
-  const { recentlyPlayed, loading } = useNowPlaying();
+  const { recentlyPlayed = [], loading } = useNowPlaying();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
