@@ -3,10 +3,16 @@ import {
   supabase,
   isSupabaseConfigured,
 } from "../config/supabase";
-import {
-  shows as placeholderShows,
-  type Show,
-} from "../data/shows";
+
+export interface Show {
+  id: string;
+  name: string;
+  artwork: string;
+  description: string;
+  time: string;
+  days: string[];
+  presenterId: string;
+}
 
 interface ShowRow {
   id: string;
@@ -19,8 +25,8 @@ interface ShowRow {
 }
 
 export function useShows() {
-  const [shows, setShows] = useState<Show[]>(placeholderShows);
-  const [loading, setLoading] = useState(isSupabaseConfigured);
+  const [shows, setShows] = useState<Show[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
@@ -31,7 +37,7 @@ export function useShows() {
 
     let cancelled = false;
 
-    async function load() {
+    async function loadShows() {
       const { data, error } = await supabase
         .from("shows")
         .select(
@@ -40,35 +46,33 @@ export function useShows() {
 
       if (cancelled) return;
 
-      if (error || !data || data.length === 0) {
-        if (error) {
-          console.warn(
-            "[Supabase] Failed to load shows:",
-            error.message
-          );
-        }
-
+      if (error) {
+        console.warn(
+          "[Supabase] Failed to load shows:",
+          error.message
+        );
         setLoading(false);
         return;
       }
 
-      setShows(
-        (data as ShowRow[]).map((row) => ({
-          id: row.id,
-          name: row.name,
-          artwork: row.artwork,
-          description: row.description,
-          time: row.time,
-          days: row.days,
-          presenterId: row.presenter_id,
-        }))
-      );
+      const mappedShows: Show[] = (
+        data as ShowRow[]
+      ).map((row) => ({
+        id: row.id,
+        name: row.name,
+        artwork: row.artwork,
+        description: row.description,
+        time: row.time,
+        days: row.days,
+        presenterId: row.presenter_id,
+      }));
 
-      setIsLive(true);
+      setShows(mappedShows);
+      setIsLive(mappedShows.length > 0);
       setLoading(false);
     }
 
-    load();
+    loadShows();
 
     return () => {
       cancelled = true;
