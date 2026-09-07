@@ -5,12 +5,7 @@ type ScheduleEntry = {
   date: string;
   start_time: string;
   end_time: string | null;
-  show_id: string;
-  show: {
-    id: string;
-    name: string;
-    artwork: string;
-  } | null;
+  show_name: string;
 };
 
 function currentTimeLabel() {
@@ -55,8 +50,6 @@ export function ScheduleRail({
   return (
     <div className="flex snap-x gap-3 overflow-x-auto pb-2">
       {schedule.map((slot) => {
-        if (!slot.show) return null;
-
         const live = isSlotLive(
           slot.start_time,
           slot.end_time,
@@ -64,9 +57,8 @@ export function ScheduleRail({
         );
 
         return (
-          <Link
+          <div
             key={slot.id}
-            to={`/shows/${slot.show.id}`}
             className={`group flex w-64 shrink-0 snap-start flex-col gap-3 rounded-2xl border p-4 transition-colors ${
               live
                 ? "border-lime bg-lime/5"
@@ -93,19 +85,21 @@ export function ScheduleRail({
             </div>
 
             <div className="flex items-center gap-3">
-              <img
-                src={slot.show.artwork}
-                alt=""
-                className="h-12 w-12 rounded-lg object-cover ring-1 ring-base-line"
-              />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-base-raised text-xs font-medium text-ink-faint">
+                L
+              </div>
 
               <div className="min-w-0">
                 <p className="truncate font-display text-base text-ink">
-                  {slot.show.name}
+                  {slot.show_name}
+                </p>
+
+                <p className="truncate text-xs text-ink-faint">
+                  Luma Radio
                 </p>
               </div>
             </div>
-          </Link>
+          </div>
         );
       })}
     </div>
