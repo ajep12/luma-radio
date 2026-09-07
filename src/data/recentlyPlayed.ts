@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { isNowPlayingConfigured, radioCastConfig } from "../config/radiocast";
+import {
+  isNowPlayingConfigured,
+  radioCastConfig,
+} from "../config/radiocast";
 
 export interface NowPlayingData {
   song?: string;
@@ -25,33 +28,36 @@ interface NowPlayingState {
   error: boolean;
 }
 
-interface RadioCastSongHistoryEntry {
-  sh_id: number;
-  played_at: number;
-  song?: {
-    id?: string;
-    title?: string;
-    artist?: string;
-    art?: string;
-  };
+interface RadioCastSong {
+  id?: string | number;
+  title?: string;
+  artist?: string;
+  art?: string;
+  artwork?: string;
 }
 
-interface RadioCastNowPlayingResponse {
+interface RadioCastHistoryEntry {
+  sh_id?: number | string;
+  played_at?: number | string;
+  song?: RadioCastSong;
+}
+
+interface RadioCastResponse {
   now_playing?: {
-    song?: {
-      title?: string;
-      artist?: string;
-      art?: string;
-    };
+    song?: RadioCastSong;
   };
+
   live?: {
     is_live?: boolean;
     streamer_name?: string;
+    name?: string;
   };
+
   listeners?: {
     current?: number;
   };
-  song_history?: RadioCastSongHistoryEntry[];
+
+  song_history?: RadioCastHistoryEntry[];
 }
 
 export function useNowPlaying(): NowPlayingState {
@@ -63,71 +69,151 @@ export function useNowPlaying(): NowPlayingState {
   });
 
   useEffect(() => {
-    if (!isNowPlayingConfigured) return;
+    if (!isNowPlayingConfigured) {
+      setState({
+        data: null,
+        recentlyPlayed: [],
+        loading: false,
+        error: false,
+      });
+
+      return;
+    }
 
     let cancelled = false;
 
     async function poll() {
       try {
-        const res = await fetch(radioCastConfig.nowPlayingUrl, { cache: "no-store" });
-        if (!res.ok) throw new Error(`RadioCast Now Playing request failed (${res.status})`);
-        const json = await res.json();
-        if (!cancelled) {
-          setState({
-            data: mapResponse(json),
-            recentlyPlayed: mapHistory(json),
-            loading: false,
-            error: false,
-          });
+        const response = await fetch(
+          radioCastConfig.nowPlayingUrl,
+          {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              Accept: "application/json",
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `RadioCast request failed: ${response.status} ${response.statusText}`
+          );
         }
-      } catch (err) {
-        if (!cancelled) {
-          setState((prev) => ({ ...prev, loading: false, error: true }));
-        }
-        // eslint-disable-next-line no-console
-        console.warn("[RadioCast] Now Playing fetch failed:", err);
+
+        const json: RadioCastResponse = await response.json();
+
+        if (cancelled) return;
+
+        setState({
+          data: mapResponse(json),
+          recentlyPlayed: mapHistory(json),
+          loading: false,
+          error: false,
+        });
+      } catch (error) {
+        if (cancelled) return;
+
+        console.warn(
+          "[RadioCast] Now Playing fetch failed:",
+          error
+        );
+
+        setState((previous) => ({
+          ...previous,
+          loading: false,
+          error: true,
+        }));
       }
     }
 
+    // Fetch immediately
     poll();
-    const interval = setInterval(poll, radioCastConfig.nowPlayingPollIntervalMs);
+
+    // Then keep it updated
+    const interval = window.setInterval(
+      poll,
+      radioCastConfig.nowPlayingPollIntervalMs
+    );
+
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      window.clearInterval(interval);
     };
   }, []);
 
   return state;
 }
 
-function mapResponse(json: unknown): NowPlayingData {
-  const data = json as RadioCastNowPlayingResponse;
+function mapResponse(
+  data: RadioCastResponse
+): NowPlayingData {
   const song = data.now_playing?.song;
-  const isLive = data.live?.is_live === true;
+
+  const isLive =
+    data.live?.is_live === true;
 
   return {
-    song: song?.title,
-    artist: song?.artist,
-    artwork: song?.art,
-    presenter: isLive ? data.live?.streamer_name || undefined : undefined,
-    listeners: data.listeners?.current,
+    song: song?.title || undefined,
+
+    artist: song?.artist || undefined,
+
+    artwork:
+      song?.art ||
+      song?.artwork ||
+      undefined,
+
+    presenter: isLive
+      ? data.live?.streamer_name ||
+        data.live?.name ||
+        undefined
+      : undefined,
+
+    listeners:
+      typeof data.listeners?.current === "number"
+        ? data.listeners.current
+        : undefined,
   };
 }
 
-function mapHistory(json: unknown): PlayedTrack[] {
-  const data = json as RadioCastNowPlayingResponse;
+function mapHistory(
+  data: RadioCastResponse
+): PlayedTrack[] {
   const history = data.song_history ?? [];
 
   return history
-    .filter((entry) => entry.song?.title)
-    .map((entry) => ({
-      id: String(entry.sh_id),
-      artist: entry.song?.artist ?? "Unknown artist",
-      song: entry.song?.title ?? "Unknown song",
-      artwork: entry.song?.art ?? "",
-      playedAt: new Date(entry.played_at * 1000).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    }));
+    .filter(
+      (entry) =>
+        entry.song?.title &&
+        entry.sh_id !== undefined
+    )
+    .map((entry) => {
+      const playedAt = Number(entry.played_at);
+
+      return {
+        id: String(entry.sh_id),
+
+        artist:
+          entry.song?.artist ||
+          "Unknown artist",
+
+        song:
+          entry.song?.title ||
+          "Unknown song",
+
+        artwork:
+          entry.song?.art ||
+          entry.song?.artwork ||
+          "",
+
+        playedAt: Number.isFinite(playedAt)
+          ? new Date(
+              playedAt * 1000
+            ).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "",
+      };
+    });
 }
