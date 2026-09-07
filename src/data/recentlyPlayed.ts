@@ -29,35 +29,44 @@ interface NowPlayingState {
 }
 
 interface RadioCastSong {
-  id?: string | number;
+  id?: string;
   title?: string;
   artist?: string;
   art?: string;
-  artwork?: string;
 }
 
-interface RadioCastHistoryEntry {
-  sh_id?: number | string;
-  played_at?: number | string;
+interface RadioCastSongHistoryEntry {
+  sh_id: number;
+  played_at: number;
   song?: RadioCastSong;
 }
 
 interface RadioCastResponse {
-  now_playing?: {
-    song?: RadioCastSong;
+  listeners?: {
+    current?: number;
+    total?: number;
+    unique?: number;
   };
 
   live?: {
     is_live?: boolean;
     streamer_name?: string;
-    name?: string;
+    art?: string | null;
   };
 
-  listeners?: {
-    current?: number;
+  now_playing?: {
+    sh_id?: number;
+    played_at?: number;
+    duration?: number;
+    streamer?: string;
+    elapsed?: number;
+    remaining?: number;
+    song?: RadioCastSong;
   };
 
-  song_history?: RadioCastHistoryEntry[];
+  song_history?: RadioCastSongHistoryEntry[];
+
+  is_online?: boolean;
 }
 
 export function useNowPlaying(): NowPlayingState {
@@ -97,7 +106,7 @@ export function useNowPlaying(): NowPlayingState {
 
         if (!response.ok) {
           throw new Error(
-            `RadioCast request failed: ${response.status} ${response.statusText}`
+            `RadioCast request failed (${response.status})`
           );
         }
 
@@ -130,7 +139,7 @@ export function useNowPlaying(): NowPlayingState {
     // Fetch immediately
     poll();
 
-    // Then keep it updated
+    // Update periodically
     const interval = window.setInterval(
       poll,
       radioCastConfig.nowPlayingPollIntervalMs
@@ -149,25 +158,19 @@ function mapResponse(
   data: RadioCastResponse
 ): NowPlayingData {
   const song = data.now_playing?.song;
-
-  const isLive =
-    data.live?.is_live === true;
+  const live = data.live;
 
   return {
     song: song?.title || undefined,
 
     artist: song?.artist || undefined,
 
-    artwork:
-      song?.art ||
-      song?.artwork ||
-      undefined,
+    artwork: song?.art || undefined,
 
-    presenter: isLive
-      ? data.live?.streamer_name ||
-        data.live?.name ||
-        undefined
-      : undefined,
+    presenter:
+      live?.is_live === true
+        ? live.streamer_name || undefined
+        : undefined,
 
     listeners:
       typeof data.listeners?.current === "number"
@@ -179,41 +182,35 @@ function mapResponse(
 function mapHistory(
   data: RadioCastResponse
 ): PlayedTrack[] {
-  const history = data.song_history ?? [];
-
-  return history
+  return (data.song_history ?? [])
     .filter(
       (entry) =>
-        entry.song?.title &&
-        entry.sh_id !== undefined
+        Boolean(entry.song?.title) &&
+        Boolean(entry.sh_id)
     )
-    .map((entry) => {
-      const playedAt = Number(entry.played_at);
+    .map((entry) => ({
+      id: String(entry.sh_id),
 
-      return {
-        id: String(entry.sh_id),
+      artist:
+        entry.song?.artist ||
+        "Unknown artist",
 
-        artist:
-          entry.song?.artist ||
-          "Unknown artist",
+      song:
+        entry.song?.title ||
+        "Unknown song",
 
-        song:
-          entry.song?.title ||
-          "Unknown song",
+      artwork:
+        entry.song?.art ||
+        "",
 
-        artwork:
-          entry.song?.art ||
-          entry.song?.artwork ||
-          "",
-
-        playedAt: Number.isFinite(playedAt)
+      playedAt:
+        entry.played_at
           ? new Date(
-              playedAt * 1000
+              entry.played_at * 1000
             ).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             })
           : "",
-      };
-    });
+    }));
 }
