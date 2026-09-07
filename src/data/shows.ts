@@ -1,59 +1,30 @@
-import { useEffect, useState } from "react";
-import { supabase, isSupabaseConfigured } from "../config/supabase";
-import { shows as placeholderShows, type Show } from "../data/shows";
-
-interface ShowRow {
+export interface Show {
   id: string;
   name: string;
   artwork: string;
   description: string;
   time: string;
   days: string[];
-  presenter_id: string;
+  presenterId: string;
 }
 
-export function useShows() {
-  const [shows, setShows] = useState<Show[]>(placeholderShows);
-  const [loading, setLoading] = useState(isSupabaseConfigured);
-  const [isLive, setIsLive] = useState(false);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    let cancelled = false;
-
-    async function load() {
-      const { data, error } = await supabase
-        .from("shows")
-        .select("id, name, artwork, description, time, days, presenter_id");
-
-      if (cancelled) return;
-      if (error || !data || data.length === 0) {
-        // eslint-disable-next-line no-console
-        if (error) console.warn("[Supabase] Failed to load shows:", error.message);
-        setLoading(false);
-        return; // keep the placeholder shows as a fallback
-      }
-
-      setShows(
-        (data as ShowRow[]).map((row) => ({
-          id: row.id,
-          name: row.name,
-          artwork: row.artwork,
-          description: row.description,
-          time: row.time,
-          days: row.days,
-          presenterId: row.presenter_id,
-        }))
-      );
-      setIsLive(true);
-      setLoading(false);
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { shows, loading, isLive };
-}
+export const shows: Show[] = [
+  {
+    id: "breakfast",
+    name: "Luma Breakfast",
+    artwork: "/images/shows/breakfast.jpg",
+    description: "Start your day with Luma.",
+    time: "07:00 - 10:00",
+    days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    presenterId: "",
+  },
+  {
+    id: "drive",
+    name: "Luma Drive",
+    artwork: "/images/shows/drive.jpg",
+    description: "The perfect soundtrack for your afternoon.",
+    time: "16:00 - 19:00",
+    days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    presenterId: "",
+  },
+];
