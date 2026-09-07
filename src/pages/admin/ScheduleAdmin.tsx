@@ -2,18 +2,12 @@ import { useEffect, useState } from "react";
 import { supabase, isSupabaseConfigured } from "../../config/supabase";
 import { AdminHeading } from "./AdminHeading";
 
-type Show = {
-  id: string;
-  name: string;
-};
-
 type ScheduleEntry = {
   id: string;
   date: string;
   start_time: string;
   end_time: string | null;
-  show_id: string;
-  show: Show | null;
+  show_name: string;
 };
 
 const days = [
@@ -54,8 +48,6 @@ export function ScheduleAdmin() {
   );
 
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
-  const [shows, setShows] = useState<Show[]>([]);
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -63,74 +55,41 @@ export function ScheduleAdmin() {
   const [addingDate, setAddingDate] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    show_id: "",
+    show_name: "",
     start_time: "",
     end_time: "",
   });
 
   useEffect(() => {
-    loadData();
+    loadSchedule();
   }, [monday]);
 
-  async function loadData() {
+  async function loadSchedule() {
     if (!isSupabaseConfigured) {
       setSchedule([]);
-      setShows([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
 
-    const weekStart = formatDate(monday);
-
     const weekEnd = new Date(monday);
     weekEnd.setDate(monday.getDate() + 6);
 
-    const [scheduleResult, showsResult] = await Promise.all([
-      supabase
-        .from("schedule")
-        .select(`
-          id,
-          date,
-          start_time,
-          end_time,
-          show_id,
-          show:shows (
-            id,
-            name
-          )
-        `)
-        .gte("date", weekStart)
-        .lte("date", formatDate(weekEnd))
-        .order("date")
-        .order("start_time"),
+    const { data, error } = await supabase
+      .from("schedule")
+      .select("id, date, start_time, end_time, show_name")
+      .gte("date", formatDate(monday))
+      .lte("date", formatDate(weekEnd))
+      .order("date")
+      .order("start_time");
 
-      supabase
-        .from("shows")
-        .select("id, name")
-        .order("name"),
-    ]);
-
-    if (scheduleResult.error) {
-      console.error(
-        "[Schedule] Failed to load schedule:",
-        scheduleResult.error
-      );
+    if (error) {
+      console.error("[Schedule] Failed to load:", error);
+      setSchedule([]);
+    } else {
+      setSchedule((data ?? []) as ScheduleEntry[]);
     }
-
-    if (showsResult.error) {
-      console.error(
-        "[Schedule] Failed to load shows:",
-        showsResult.error
-      );
-    }
-
-    setSchedule(
-      (scheduleResult.data ?? []) as ScheduleEntry[]
-    );
-
-    setShows((showsResult.data ?? []) as Show[]);
 
     setLoading(false);
   }
@@ -140,7 +99,7 @@ export function ScheduleAdmin() {
     setAddingDate(date);
 
     setForm({
-      show_id: shows[0]?.id ?? "",
+      show_name: "",
       start_time: "",
       end_time: "",
     });
@@ -151,7 +110,7 @@ export function ScheduleAdmin() {
     setEditing(slot.id);
 
     setForm({
-      show_id: slot.show_id,
+      show_name: slot.show_name,
       start_time: slot.start_time.slice(0, 5),
       end_time: slot.end_time
         ? slot.end_time.slice(0, 5)
@@ -165,8 +124,8 @@ export function ScheduleAdmin() {
   }
 
   async function saveSlot(date: string) {
-    if (!form.show_id || !form.start_time) {
-      alert("Please select a show and start time.");
+    if (!form.show_name.trim() || !form.start_time) {
+      alert("Please enter a show name and start time.");
       return;
     }
 
@@ -176,7 +135,7 @@ export function ScheduleAdmin() {
       date,
       start_time: form.start_time,
       end_time: form.end_time || null,
-      show_id: form.show_id,
+      show_name: form.show_name.trim(),
     };
 
     if (editing) {
@@ -204,7 +163,7 @@ export function ScheduleAdmin() {
       }
     }
 
-    await loadData();
+    await loadSchedule();
 
     setAddingDate(null);
     setEditing(null);
@@ -227,7 +186,7 @@ export function ScheduleAdmin() {
       return;
     }
 
-    await loadData();
+    await loadSchedule();
   }
 
   function previousWeek() {
@@ -341,60 +300,53 @@ export function ScheduleAdmin() {
                       Nothing scheduled.
                     </p>
                   ) : (
-                    slots.map((slot) => (
-                      <div key={slot.id}>
-                        {editing === slot.id ? (
-                          <ScheduleForm
-                            form={form}
-                            setForm={setForm}
-                            shows={shows}
-                            saving={saving}
-                            onSave={() =>
-                              saveSlot(dateString)
-                            }
-                            onCancel={cancelForm}
-                          />
-                        ) : (
-                          <div className="flex items-center gap-4 px-5 py-3">
-                            <span className="w-28 shrink-0 text-sm text-lime">
-                              {slot.start_time.slice(0, 5)}
-                              {slot.end_time &&
-                                `–${slot.end_time.slice(0, 5)}`}
-                            </span>
+                    slots.map((slot) =>
+                      editing === slot.id ? (
+                        <ScheduleForm
+                          key={slot.id}
+                          form={form}
+                          setForm={setForm}
+                          saving={saving}
+                          onSave={() => saveSlot(dateString)}
+                          onCancel={cancelForm}
+                        />
+                      ) : (
+                        <div
+                          key={slot.id}
+                          className="flex items-center gap-4 px-5 py-3"
+                        >
+                          <span className="w-32 shrink-0 text-sm text-lime">
+                            {slot.start_time.slice(0, 5)}
+                            {slot.end_time &&
+                              `–${slot.end_time.slice(0, 5)}`}
+                          </span>
 
-                            <span className="flex-1 text-sm text-ink">
-                              {slot.show?.name ??
-                                "Unknown show"}
-                            </span>
+                          <span className="flex-1 text-sm text-ink">
+                            {slot.show_name}
+                          </span>
 
-                            <button
-                              onClick={() =>
-                                startEditing(slot)
-                              }
-                              className="text-xs font-medium text-ink-faint hover:text-lime"
-                            >
-                              Edit
-                            </button>
+                          <button
+                            onClick={() => startEditing(slot)}
+                            className="text-xs font-medium text-ink-faint hover:text-lime"
+                          >
+                            Edit
+                          </button>
 
-                            <button
-                              onClick={() =>
-                                deleteSlot(slot.id)
-                              }
-                              className="text-xs font-medium text-red-400 hover:text-red-300"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))
+                          <button
+                            onClick={() => deleteSlot(slot.id)}
+                            className="text-xs font-medium text-red-400 hover:text-red-300"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )
+                    )
                   )}
 
                   {isAdding && (
                     <ScheduleForm
                       form={form}
                       setForm={setForm}
-                      shows={shows}
                       saving={saving}
                       onSave={() => saveSlot(dateString)}
                       onCancel={cancelForm}
@@ -413,24 +365,22 @@ export function ScheduleAdmin() {
 function ScheduleForm({
   form,
   setForm,
-  shows,
   saving,
   onSave,
   onCancel,
 }: {
   form: {
-    show_id: string;
+    show_name: string;
     start_time: string;
     end_time: string;
   };
   setForm: React.Dispatch<
     React.SetStateAction<{
-      show_id: string;
+      show_name: string;
       start_time: string;
       end_time: string;
     }>
   >;
-  shows: Show[];
   saving: boolean;
   onSave: () => void;
   onCancel: () => void;
@@ -438,29 +388,25 @@ function ScheduleForm({
   return (
     <div className="grid gap-3 p-5 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
       <label className="text-xs text-ink-faint">
-        Show
-        <select
-          value={form.show_id}
+        Show name
+
+        <input
+          type="text"
+          value={form.show_name}
           onChange={(e) =>
             setForm((current) => ({
               ...current,
-              show_id: e.target.value,
+              show_name: e.target.value,
             }))
           }
-          className="mt-1 w-full rounded-xl border border-base-line bg-base-panel px-3 py-2 text-sm text-ink"
-        >
-          <option value="">Select a show</option>
-
-          {shows.map((show) => (
-            <option key={show.id} value={show.id}>
-              {show.name}
-            </option>
-          ))}
-        </select>
+          placeholder="e.g. Luma Drive"
+          className="mt-1 w-full rounded-xl border border-base-line bg-base-panel px-3 py-2 text-sm text-ink placeholder:text-ink-faint"
+        />
       </label>
 
       <label className="text-xs text-ink-faint">
         Start
+
         <input
           type="time"
           value={form.start_time}
@@ -476,6 +422,7 @@ function ScheduleForm({
 
       <label className="text-xs text-ink-faint">
         End
+
         <input
           type="time"
           value={form.end_time}
