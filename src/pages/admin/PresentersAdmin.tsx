@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { presenters as fallbackPresenters } from "../../data/presenters";
+import { useEffect, useState } from "react";
 import { AdminHeading } from "./AdminHeading";
 import { supabase } from "../../config/supabase";
 
@@ -11,11 +10,8 @@ type Presenter = {
 };
 
 export function PresentersAdmin() {
-  const [items, setItems] = useState<Presenter[]>(
-    fallbackPresenters
-  );
-
-  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState<Presenter[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editingPresenter, setEditingPresenter] =
     useState<Presenter | null>(null);
   const [adding, setAdding] = useState(false);
@@ -34,25 +30,25 @@ export function PresentersAdmin() {
         error
       );
 
+      setItems([]);
       setLoading(false);
       return;
     }
 
-    if (data) {
-      setItems(data as Presenter[]);
-    }
-
+    setItems((data ?? []) as Presenter[]);
     setLoading(false);
   }
+
+  useEffect(() => {
+    loadPresenters();
+  }, []);
 
   async function deletePresenter(presenter: Presenter) {
     const confirmed = window.confirm(
       `Are you sure you want to delete "${presenter.name}"?\n\nThis cannot be undone.`
     );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     const { error } = await supabase
       .from("presenters")
@@ -69,9 +65,7 @@ export function PresentersAdmin() {
       return;
     }
 
-    setItems((current) =>
-      current.filter((item) => item.id !== presenter.id)
-    );
+    await loadPresenters();
   }
 
   return (
@@ -95,9 +89,7 @@ export function PresentersAdmin() {
           <div className="mb-6 flex items-start justify-between">
             <div>
               <h2 className="font-display text-xl text-ink">
-                {adding
-                  ? "Add presenter"
-                  : "Edit presenter"}
+                {adding ? "Add presenter" : "Edit presenter"}
               </h2>
 
               <p className="mt-1 text-sm text-ink-faint">
@@ -165,7 +157,7 @@ export function PresentersAdmin() {
                 </p>
               </div>
 
-              <div className="flex shrink-0 items-center gap-4">
+              <div className="flex shrink-0 gap-4">
                 <button
                   type="button"
                   onClick={() =>
@@ -204,15 +196,12 @@ function PresenterForm({
   const [name, setName] = useState(
     presenter?.name ?? ""
   );
-
   const [photo, setPhoto] = useState(
     presenter?.photo ?? ""
   );
-
   const [bio, setBio] = useState(
     presenter?.bio ?? ""
   );
-
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -227,8 +216,7 @@ function PresenterForm({
 
     try {
       if (presenter) {
-        // EDIT EXISTING PRESENTER
-        const { error: updateError } = await supabase
+        const { error } = await supabase
           .from("presenters")
           .update({
             name: name.trim(),
@@ -237,12 +225,9 @@ function PresenterForm({
           })
           .eq("id", presenter.id);
 
-        if (updateError) {
-          throw updateError;
-        }
+        if (error) throw error;
       } else {
-        // ADD NEW PRESENTER
-        const { error: insertError } = await supabase
+        const { error } = await supabase
           .from("presenters")
           .insert({
             name: name.trim(),
@@ -250,9 +235,7 @@ function PresenterForm({
             bio: bio.trim(),
           });
 
-        if (insertError) {
-          throw insertError;
-        }
+        if (error) throw error;
       }
 
       await onSaved();
@@ -281,9 +264,7 @@ function PresenterForm({
 
         <input
           value={name}
-          onChange={(e) =>
-            setName(e.target.value)
-          }
+          onChange={(e) => setName(e.target.value)}
           placeholder="Presenter name"
           className="rounded-xl border border-base-line bg-base-raised px-4 py-3 text-ink outline-none focus:border-lime"
         />
@@ -296,9 +277,7 @@ function PresenterForm({
 
         <input
           value={photo}
-          onChange={(e) =>
-            setPhoto(e.target.value)
-          }
+          onChange={(e) => setPhoto(e.target.value)}
           placeholder="https://..."
           className="rounded-xl border border-base-line bg-base-raised px-4 py-3 text-ink outline-none focus:border-lime"
         />
@@ -319,9 +298,7 @@ function PresenterForm({
 
         <textarea
           value={bio}
-          onChange={(e) =>
-            setBio(e.target.value)
-          }
+          onChange={(e) => setBio(e.target.value)}
           rows={4}
           placeholder="Presenter biography..."
           className="resize-none rounded-xl border border-base-line bg-base-raised px-4 py-3 text-ink outline-none focus:border-lime"
@@ -334,20 +311,18 @@ function PresenterForm({
         </div>
       )}
 
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving || !name.trim()}
-          className="rounded-full bg-lime px-5 py-2.5 text-sm font-semibold text-coal disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving
-            ? "Saving..."
-            : presenter
-              ? "Save changes"
-              : "Add presenter"}
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving || !name.trim()}
+        className="w-fit rounded-full bg-lime px-5 py-2.5 text-sm font-semibold text-coal disabled:opacity-50"
+      >
+        {saving
+          ? "Saving..."
+          : presenter
+            ? "Save changes"
+            : "Add presenter"}
+      </button>
     </div>
   );
 }
