@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+
 import { Hero } from "../components/home/Hero";
 import { Ticker } from "../components/home/Ticker";
 import { ScheduleRail } from "../components/schedule/ScheduleRail";
@@ -6,27 +8,124 @@ import { ShowCard } from "../components/shows/ShowCard";
 import { PresenterCard } from "../components/presenters/PresenterCard";
 import { AdSlot } from "../components/ads/AdSlot";
 import { SectionHeading } from "../components/common/SectionHeading";
-import { useShows } from "../hooks/useShows";
-import { presenters } from "../data/presenters";
-import { ads } from "../data/ads";
-import { weekDays } from "../data/schedule";
 
-function today() {
-  const idx = new Date().getDay();
-  return weekDays[(idx + 6) % 7];
+import { useShows } from "../hooks/useShows";
+import { usePresenters } from "../hooks/usePresenters";
+
+import { ads } from "../data/ads";
+
+import {
+  supabase,
+  isSupabaseConfigured,
+} from "../config/supabase";
+
+type ScheduleEntry = {
+  id: string;
+  date: string;
+  start_time: string;
+  end_time: string | null;
+  show_name: string;
+};
+
+function getLocalDate() {
+  const date = new Date();
+
+  return `${date.getFullYear()}-${String(
+    date.getMonth() + 1
+  ).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
 }
 
 export function Home() {
-  const { shows = [], loading } = useShows();
+  const {
+    shows = [],
+    loading: showsLoading,
+  } = useShows();
 
-  const banner = ads.find((a) => a.kind === "homepage-banner");
+  const {
+    presenters = [],
+    loading: presentersLoading,
+  } = usePresenters();
+
+  const [todaySchedule, setTodaySchedule] =
+    useState<ScheduleEntry[]>([]);
+
+  const [scheduleLoading, setScheduleLoading] =
+    useState(true);
+
+  const [scheduleError, setScheduleError] =
+    useState(false);
+
+  /*
+   * Load today's schedule directly from Supabase.
+   */
+  useEffect(() => {
+    async function loadTodaySchedule() {
+      if (!isSupabaseConfigured) {
+        setTodaySchedule([]);
+        setScheduleLoading(false);
+        return;
+      }
+
+      setScheduleLoading(true);
+      setScheduleError(false);
+
+      const today = getLocalDate();
+
+      const { data, error } = await supabase
+        .from("schedule")
+        .select(
+          "id, date, start_time, end_time, show_name"
+        )
+        .eq("date", today)
+        .order("start_time");
+
+      if (error) {
+        console.error(
+          "[Supabase] Failed to load today's schedule:",
+          error
+        );
+
+        setTodaySchedule([]);
+        setScheduleError(true);
+        setScheduleLoading(false);
+
+        return;
+      }
+
+      setTodaySchedule(
+        Array.isArray(data)
+          ? (data as ScheduleEntry[])
+          : []
+      );
+
+      setScheduleLoading(false);
+    }
+
+    loadTodaySchedule();
+  }, []);
+
+  /*
+   * Homepage banner.
+   *
+   * NOTE:
+   * This is still using the old static ads.ts file.
+   * We can move ads to Supabase next.
+   */
+  const banner = ads.find(
+    (ad) => ad.kind === "homepage-banner"
+  );
 
   return (
     <>
+      {/* Hero */}
       <Hero />
 
+      {/* Now Playing ticker */}
       <Ticker />
 
+      {/* Today's schedule */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <SectionHeading
           title="Today on Luma"
@@ -42,16 +141,35 @@ export function Home() {
         />
 
         <div className="mt-6">
-          <ScheduleRail day={today()} />
+          {scheduleLoading ? (
+            <div className="flex gap-3 overflow-hidden">
+              {[1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="h-32 w-64 shrink-0 animate-pulse rounded-2xl bg-base-raised"
+                />
+              ))}
+            </div>
+          ) : scheduleError ? (
+            <p className="text-sm text-red-400">
+              Failed to load today's schedule.
+            </p>
+          ) : (
+            <ScheduleRail
+              schedule={todaySchedule}
+            />
+          )}
         </div>
       </section>
 
+      {/* Homepage advert */}
       {banner && (
         <section className="mx-auto max-w-6xl px-4 pb-4 sm:px-6">
           <AdSlot ad={banner} />
         </section>
       )}
 
+      {/* Featured shows */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <SectionHeading
           title="Featured shows"
@@ -67,17 +185,22 @@ export function Home() {
         />
 
         <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {loading ? (
-            [...Array(4)].map((_, i) => (
+          {showsLoading ? (
+            [...Array(4)].map((_, index) => (
               <div
-                key={i}
+                key={index}
                 className="h-64 animate-pulse rounded-2xl bg-base-raised"
               />
             ))
           ) : shows.length > 0 ? (
-            shows.slice(0, 4).map((show) => (
-              <ShowCard key={show.id} show={show} />
-            ))
+            shows
+              .slice(0, 4)
+              .map((show) => (
+                <ShowCard
+                  key={show.id}
+                  show={show}
+                />
+              ))
           ) : (
             <p className="text-sm text-ink-faint">
               No shows are currently available.
@@ -86,6 +209,7 @@ export function Home() {
         </div>
       </section>
 
+      {/* Presenters */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <SectionHeading
           title="Meet the presenters"
@@ -101,12 +225,27 @@ export function Home() {
         />
 
         <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {presenters.map((presenter) => (
-            <PresenterCard
-              key={presenter.id}
-              presenter={presenter}
-            />
-          ))}
+          {presentersLoading ? (
+            [...Array(4)].map((_, index) => (
+              <div
+                key={index}
+                className="h-64 animate-pulse rounded-2xl bg-base-raised"
+              />
+            ))
+          ) : presenters.length > 0 ? (
+            presenters
+              .slice(0, 4)
+              .map((presenter) => (
+                <PresenterCard
+                  key={presenter.id}
+                  presenter={presenter}
+                />
+              ))
+          ) : (
+            <p className="text-sm text-ink-faint">
+              No presenters are currently available.
+            </p>
+          )}
         </div>
       </section>
     </>
