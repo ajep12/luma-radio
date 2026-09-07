@@ -22,9 +22,6 @@ export function Signup() {
       setError(error);
       return;
     }
-    // If Supabase has email confirmation on (the default), there's no
-    // session yet — show a "check your email" message instead of
-    // navigating straight to the profile page.
     setConfirmSent(true);
   }
 

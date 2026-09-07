@@ -1,5 +1,7 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, Link } from "react-router-dom";
 import { Logo } from "../../components/layout/Logo";
+import { useAuth } from "../../context/AuthContext";
+import { isAdminEmail } from "../../config/admin";
 
 const adminNav = [
   { label: "Overview", to: "/admin", end: true },
@@ -13,13 +15,39 @@ const adminNav = [
   { label: "Station settings", to: "/admin/settings" },
 ];
 
-/**
- * The admin dashboard is intentionally a separate shell from the public
- * site — no public navbar/footer, no shared player chrome. It's a frontend
- * scaffold: every screen here is ready to be wired up to real data (station
- * settings, Supabase-backed content, etc.) later.
- */
 export function AdminLayout() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-base text-ink-faint">
+        Loading…
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-base text-center text-ink">
+        <p>You need to log in to view this page.</p>
+        <Link to="/account/login" className="rounded-full bg-lime px-6 py-3 text-sm font-semibold text-coal">
+          Log in
+        </Link>
+      </div>
+    );
+  }
+
+  if (!isAdminEmail(user.email)) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-base text-center text-ink">
+        <p>You don't have access to this page.</p>
+        <Link to="/" className="text-lime hover:underline">
+          Back to Luma Radio
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-base text-ink">
       <aside className="hidden w-64 shrink-0 border-r border-base-line bg-base-raised sm:flex sm:flex-col">

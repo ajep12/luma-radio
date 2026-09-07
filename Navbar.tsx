@@ -13,7 +13,6 @@ export function Navbar() {
     <header className="sticky top-0 z-30 border-b border-base-line/80 bg-base/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6">
         <Logo />
-
         <nav className="hidden items-center gap-7 lg:flex">
           {mainNav.map((item) => (
             <NavLink
@@ -30,7 +29,6 @@ export function Navbar() {
             </NavLink>
           ))}
         </nav>
-
         <div className="flex items-center gap-2">
           <Link
             to="/search"
@@ -87,7 +85,6 @@ export function Navbar() {
           </button>
         </div>
       </div>
-
       <MobileNav open={open} onClose={() => setOpen(false)} />
     </header>
   );
