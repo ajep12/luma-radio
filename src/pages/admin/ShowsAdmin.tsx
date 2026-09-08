@@ -1,6 +1,4 @@
-import { useState } from "react";
-import { useShows } from "../../hooks/useShows";
-import { presenters } from "../../data/presenters";
+import { useEffect, useState } from "react";
 import { supabase } from "../../config/supabase";
 import { AdminHeading } from "./AdminHeading";
 
@@ -14,6 +12,11 @@ type Show = {
   presenterId: string;
 };
 
+type Presenter = {
+  id: string;
+  name: string;
+};
+
 const DAYS = [
   "Monday",
   "Tuesday",
@@ -25,28 +28,109 @@ const DAYS = [
 ];
 
 export function ShowsAdmin() {
-  const { shows, loading } = useShows();
+  const [shows, setShows] = useState<Show[]>([]);
+  const [presenters, setPresenters] = useState<Presenter[]>([]);
 
-  const [editingShow, setEditingShow] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [editingShow, setEditingShow] = useState<string | null>(
+    null
+  );
+
+  const [addingShow, setAddingShow] = useState(false);
+
+  async function loadShows() {
+    setLoading(true);
+    setError("");
+
+    const { data, error } = await supabase
+      .from("shows")
+      .select(
+        "id, name, artwork, description, time, days, presenter_id"
+      )
+      .order("name");
+
+    if (error) {
+      console.error(
+        "[Supabase] Failed to load shows:",
+        error
+      );
+
+      setShows([]);
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    const mappedShows: Show[] = Array.isArray(data)
+      ? data.map((show) => ({
+          id: show.id,
+          name: show.name ?? "",
+          artwork: show.artwork ?? "",
+          description: show.description ?? "",
+          time: show.time ?? "",
+          days: Array.isArray(show.days)
+            ? show.days
+            : [],
+          presenterId: show.presenter_id ?? "",
+        }))
+      : [];
+
+    setShows(mappedShows);
+    setLoading(false);
+  }
+
+  async function loadPresenters() {
+    const { data, error } = await supabase
+      .from("presenters")
+      .select("id, name")
+      .order("name");
+
+    if (error) {
+      console.error(
+        "[Supabase] Failed to load presenters:",
+        error
+      );
+
+      setPresenters([]);
+      return;
+    }
+
+    setPresenters(
+      Array.isArray(data)
+        ? (data as Presenter[])
+        : []
+    );
+  }
+
+  useEffect(() => {
+    loadShows();
+    loadPresenters();
+  }, []);
+
+  function refreshShows() {
+    setEditingShow(null);
+    setAddingShow(false);
+    loadShows();
+  }
 
   const selectedShow = shows.find(
     (show) => show.id === editingShow
   );
 
-  function refreshShows() {
-    setEditingShow(null);
-    setRefreshKey((value) => value + 1);
-  }
-
   return (
-    <div key={refreshKey}>
+    <div>
       <AdminHeading
         title="Shows"
         subtitle="Manage Luma Radio's show lineup."
         action={
           <button
             type="button"
+            onClick={() => {
+              setEditingShow(null);
+              setAddingShow(true);
+            }}
             className="rounded-full bg-lime px-4 py-2 text-sm font-semibold text-coal"
           >
             Add show
@@ -54,6 +138,44 @@ export function ShowsAdmin() {
         }
       />
 
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {error}
+        </div>
+      )}
+
+      {/* Add show */}
+      {addingShow && (
+        <div className="mb-6 rounded-2xl border border-base-line bg-base-panel p-6">
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <h2 className="font-display text-xl text-ink">
+                Add show
+              </h2>
+
+              <p className="mt-1 text-sm text-ink-faint">
+                Create a new Luma Radio show.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setAddingShow(false)}
+              className="text-sm text-ink-faint hover:text-ink"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <AddShowForm
+            presenters={presenters}
+            onSaved={refreshShows}
+            onCancel={() => setAddingShow(false)}
+          />
+        </div>
+      )}
+
+      {/* Edit show */}
       {selectedShow && (
         <div className="mb-6 rounded-2xl border border-base-line bg-base-panel p-6">
           <div className="mb-6 flex items-start justify-between">
@@ -78,11 +200,13 @@ export function ShowsAdmin() {
 
           <EditShowForm
             show={selectedShow}
+            presenters={presenters}
             onSaved={refreshShows}
           />
         </div>
       )}
 
+      {/* Shows table */}
       <div className="overflow-hidden rounded-2xl border border-base-line">
         {loading ? (
           <div className="px-5 py-8 text-sm text-ink-faint">
@@ -145,20 +269,23 @@ export function ShowsAdmin() {
                     </td>
 
                     <td className="px-5 py-3 text-ink-soft">
-                      {show.time}
+                      {show.time || "—"}
                     </td>
 
                     <td className="px-5 py-3 text-ink-soft">
-                      {show.days?.join(", ") || "No days"}
+                      {show.days.length > 0
+                        ? show.days.join(", ")
+                        : "No days"}
                     </td>
 
                     <td className="px-5 py-3 text-right">
                       <div className="flex justify-end gap-3">
                         <button
                           type="button"
-                          onClick={() =>
-                            setEditingShow(show.id)
-                          }
+                          onClick={() => {
+                            setAddingShow(false);
+                            setEditingShow(show.id);
+                          }}
                           className="text-xs font-medium text-lime hover:underline"
                         >
                           Edit
@@ -181,25 +308,21 @@ export function ShowsAdmin() {
   );
 }
 
-function EditShowForm({
-  show,
+function AddShowForm({
+  presenters,
   onSaved,
+  onCancel,
 }: {
-  show: Show;
+  presenters: Presenter[];
   onSaved: () => void;
+  onCancel: () => void;
 }) {
-  const [name, setName] = useState(show.name);
-  const [artwork, setArtwork] = useState(show.artwork);
-  const [description, setDescription] = useState(
-    show.description
-  );
-  const [time, setTime] = useState(show.time);
-  const [days, setDays] = useState<string[]>(
-    Array.isArray(show.days) ? show.days : []
-  );
-  const [presenterId, setPresenterId] = useState(
-    show.presenterId || ""
-  );
+  const [name, setName] = useState("");
+  const [artwork, setArtwork] = useState("");
+  const [description, setDescription] = useState("");
+  const [time, setTime] = useState("");
+  const [days, setDays] = useState<string[]>([]);
+  const [presenterId, setPresenterId] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -221,58 +344,30 @@ function EditShowForm({
     setSaving(true);
     setError("");
 
-    try {
-      const updateData = {
+    const { error: insertError } = await supabase
+      .from("shows")
+      .insert({
         name: name.trim(),
         artwork: artwork.trim(),
         description: description.trim(),
         time: time.trim(),
         days,
         presenter_id: presenterId || null,
-      };
+      });
 
-      console.log("[Supabase] Updating show:", show.id);
-      console.log("[Supabase] Data:", updateData);
-
-      const { data, error: updateError } = await supabase
-        .from("shows")
-        .update(updateData)
-        .eq("id", show.id)
-        .select()
-        .single();
-
-      if (updateError) {
-        console.error(
-          "[Supabase] Update failed:",
-          updateError
-        );
-
-        throw new Error(
-          updateError.message ||
-            "Supabase refused to update this show."
-        );
-      }
-
-      console.log(
-        "[Supabase] Show updated successfully:",
-        data
-      );
-
-      onSaved();
-    } catch (err) {
+    if (insertError) {
       console.error(
-        "[Supabase] Failed to update show:",
-        err
+        "[Supabase] Failed to add show:",
+        insertError
       );
 
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to save the show."
-      );
-    } finally {
+      setError(insertError.message);
       setSaving(false);
+      return;
     }
+
+    onSaved();
+    setSaving(false);
   }
 
   return (
@@ -365,32 +460,214 @@ function EditShowForm({
         </select>
       </label>
 
-      <div className="grid gap-2">
+      <DaySelector
+        days={days}
+        toggleDay={toggleDay}
+      />
+
+      {error && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {error}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || !name.trim()}
+          className="rounded-full bg-lime px-5 py-2.5 text-sm font-semibold text-coal disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? "Adding..." : "Add show"}
+        </button>
+
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={saving}
+          className="rounded-full border border-base-line px-5 py-2.5 text-sm font-medium text-ink-faint hover:text-ink"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EditShowForm({
+  show,
+  presenters,
+  onSaved,
+}: {
+  show: Show;
+  presenters: Presenter[];
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(show.name);
+  const [artwork, setArtwork] = useState(show.artwork);
+  const [description, setDescription] = useState(
+    show.description
+  );
+  const [time, setTime] = useState(show.time);
+  const [days, setDays] = useState<string[]>(
+    Array.isArray(show.days) ? show.days : []
+  );
+  const [presenterId, setPresenterId] = useState(
+    show.presenterId || ""
+  );
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function toggleDay(day: string) {
+    setDays((current) =>
+      current.includes(day)
+        ? current.filter((item) => item !== day)
+        : [...current, day]
+    );
+  }
+
+  async function save() {
+    if (!name.trim()) {
+      setError("Show name is required.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    const updateData = {
+      name: name.trim(),
+      artwork: artwork.trim(),
+      description: description.trim(),
+      time: time.trim(),
+      days,
+      presenter_id: presenterId || null,
+    };
+
+    console.log(
+      "[Supabase] Updating show:",
+      show.id
+    );
+
+    const { error: updateError } = await supabase
+      .from("shows")
+      .update(updateData)
+      .eq("id", show.id);
+
+    if (updateError) {
+      console.error(
+        "[Supabase] Update failed:",
+        updateError
+      );
+
+      setError(updateError.message);
+      setSaving(false);
+      return;
+    }
+
+    console.log(
+      "[Supabase] Show updated successfully"
+    );
+
+    onSaved();
+    setSaving(false);
+  }
+
+  return (
+    <div className="grid gap-5">
+      <label className="grid gap-2">
         <span className="text-sm font-medium text-ink">
-          Days
+          Show name
         </span>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {DAYS.map((day) => {
-            const selected = days.includes(day);
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="rounded-xl border border-base-line bg-base-raised px-4 py-3 text-ink outline-none focus:border-lime"
+          placeholder="Show name"
+        />
+      </label>
 
-            return (
-              <button
-                key={day}
-                type="button"
-                onClick={() => toggleDay(day)}
-                className={`rounded-xl border px-4 py-3 text-sm transition ${
-                  selected
-                    ? "border-lime bg-lime text-coal"
-                    : "border-base-line bg-base-raised text-ink-faint hover:text-ink"
-                }`}
-              >
-                {day}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <label className="grid gap-2">
+        <span className="text-sm font-medium text-ink">
+          Artwork URL
+        </span>
+
+        <input
+          value={artwork}
+          onChange={(e) => setArtwork(e.target.value)}
+          className="rounded-xl border border-base-line bg-base-raised px-4 py-3 text-ink outline-none focus:border-lime"
+          placeholder="https://..."
+        />
+
+        {artwork && (
+          <img
+            src={artwork}
+            alt=""
+            className="mt-2 h-24 w-24 rounded-xl object-cover"
+          />
+        )}
+      </label>
+
+      <label className="grid gap-2">
+        <span className="text-sm font-medium text-ink">
+          Description
+        </span>
+
+        <textarea
+          value={description}
+          onChange={(e) =>
+            setDescription(e.target.value)
+          }
+          rows={4}
+          className="resize-none rounded-xl border border-base-line bg-base-raised px-4 py-3 text-ink outline-none focus:border-lime"
+          placeholder="Describe the show..."
+        />
+      </label>
+
+      <label className="grid gap-2">
+        <span className="text-sm font-medium text-ink">
+          Time
+        </span>
+
+        <input
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          className="rounded-xl border border-base-line bg-base-raised px-4 py-3 text-ink outline-none focus:border-lime"
+          placeholder="18:00 - 20:00"
+        />
+      </label>
+
+      <label className="grid gap-2">
+        <span className="text-sm font-medium text-ink">
+          Presenter
+        </span>
+
+        <select
+          value={presenterId}
+          onChange={(e) =>
+            setPresenterId(e.target.value)
+          }
+          className="rounded-xl border border-base-line bg-base-raised px-4 py-3 text-ink outline-none focus:border-lime"
+        >
+          <option value="">No presenter</option>
+
+          {presenters.map((presenter) => (
+            <option
+              key={presenter.id}
+              value={presenter.id}
+            >
+              {presenter.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <DaySelector
+        days={days}
+        toggleDay={toggleDay}
+      />
 
       {error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
@@ -421,6 +698,43 @@ function EditShowForm({
   );
 }
 
+function DaySelector({
+  days,
+  toggleDay,
+}: {
+  days: string[];
+  toggleDay: (day: string) => void;
+}) {
+  return (
+    <div className="grid gap-2">
+      <span className="text-sm font-medium text-ink">
+        Days
+      </span>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {DAYS.map((day) => {
+          const selected = days.includes(day);
+
+          return (
+            <button
+              key={day}
+              type="button"
+              onClick={() => toggleDay(day)}
+              className={`rounded-xl border px-4 py-3 text-sm transition ${
+                selected
+                  ? "border-lime bg-lime text-coal"
+                  : "border-base-line bg-base-raised text-ink-faint hover:text-ink"
+              }`}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DeleteShowButton({
   show,
   onDeleted,
@@ -443,48 +757,34 @@ function DeleteShowButton({
     setDeleting(true);
     setError("");
 
-    try {
-      console.log(
-        "[Supabase] Deleting show:",
-        show.id
-      );
+    console.log(
+      "[Supabase] Attempting to delete show:",
+      show.id
+    );
 
-      const { error: deleteError } = await supabase
-        .from("shows")
-        .delete()
-        .eq("id", show.id);
+    const { error: deleteError } = await supabase
+      .from("shows")
+      .delete()
+      .eq("id", show.id);
 
-      if (deleteError) {
-        console.error(
-          "[Supabase] Delete failed:",
-          deleteError
-        );
-
-        throw new Error(
-          deleteError.message ||
-            "Supabase refused to delete this show."
-        );
-      }
-
-      console.log(
-        "[Supabase] Show deleted successfully"
-      );
-
-      onDeleted();
-    } catch (err) {
+    if (deleteError) {
       console.error(
-        "[Supabase] Failed to delete show:",
-        err
+        "[Supabase] Delete failed:",
+        deleteError
       );
 
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to delete the show."
-      );
-    } finally {
+      setError(deleteError.message);
       setDeleting(false);
+      return;
     }
+
+    console.log(
+      "[Supabase] Show deleted successfully:",
+      show.id
+    );
+
+    onDeleted();
+    setDeleting(false);
   }
 
   return (
