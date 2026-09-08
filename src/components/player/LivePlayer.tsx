@@ -1,4 +1,4 @@
-```tsx
+tsx
 import { usePlayer } from "../../context/PlayerContext";
 import { useNowPlaying } from "../../hooks/useNowPlaying";
 import {
@@ -136,4 +136,3 @@ export function LivePlayer() {
     </div>
   );
 }
-```
