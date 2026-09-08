@@ -34,10 +34,7 @@ export function ShowsAdmin() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [editingShow, setEditingShow] = useState<string | null>(
-    null
-  );
-
+  const [editingShow, setEditingShow] = useState<string | null>(null);
   const [addingShow, setAddingShow] = useState(false);
 
   async function loadShows() {
@@ -347,6 +344,7 @@ function AddShowForm({
     const { error: insertError } = await supabase
       .from("shows")
       .insert({
+        id: crypto.randomUUID(),
         name: name.trim(),
         artwork: artwork.trim(),
         description: description.trim(),
