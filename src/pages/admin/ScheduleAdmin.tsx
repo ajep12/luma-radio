@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { supabase, isSupabaseConfigured } from "../../config/supabase";
+import {
+  supabase,
+  isSupabaseConfigured,
+} from "../../config/supabase";
 import { AdminHeading } from "./AdminHeading";
 
 type ScheduleEntry = {
@@ -32,8 +35,18 @@ function getMonday(date: Date) {
   return result;
 }
 
+/*
+ * IMPORTANT:
+ * Don't use toISOString() here.
+ * It converts the date to UTC and can move UK dates
+ * backwards/forwards by one day.
+ */
 function formatDate(date: Date) {
-  return date.toISOString().split("T")[0];
+  return `${date.getFullYear()}-${String(
+    date.getMonth() + 1
+  ).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
 }
 
 function getDateForDay(monday: Date, index: number) {
@@ -47,12 +60,20 @@ export function ScheduleAdmin() {
     getMonday(new Date())
   );
 
-  const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
+  const [schedule, setSchedule] = useState<ScheduleEntry[]>(
+    []
+  );
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [editing, setEditing] = useState<string | null>(null);
-  const [addingDate, setAddingDate] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(
+    null
+  );
+
+  const [addingDate, setAddingDate] = useState<string | null>(
+    null
+  );
 
   const [form, setForm] = useState({
     show_name: "",
@@ -78,17 +99,27 @@ export function ScheduleAdmin() {
 
     const { data, error } = await supabase
       .from("schedule")
-      .select("id, date, start_time, end_time, show_name")
+      .select(
+        "id, date, start_time, end_time, show_name"
+      )
       .gte("date", formatDate(monday))
       .lte("date", formatDate(weekEnd))
       .order("date")
       .order("start_time");
 
     if (error) {
-      console.error("[Schedule] Failed to load:", error);
+      console.error(
+        "[Schedule] Failed to load:",
+        error
+      );
+
       setSchedule([]);
     } else {
-      setSchedule((data ?? []) as ScheduleEntry[]);
+      setSchedule(
+        Array.isArray(data)
+          ? (data as ScheduleEntry[])
+          : []
+      );
     }
 
     setLoading(false);
@@ -121,11 +152,21 @@ export function ScheduleAdmin() {
   function cancelForm() {
     setAddingDate(null);
     setEditing(null);
+
+    setForm({
+      show_name: "",
+      start_time: "",
+      end_time: "",
+    });
   }
 
   async function saveSlot(date: string) {
-    if (!form.show_name.trim() || !form.start_time) {
-      alert("Please enter a show name and start time.");
+    const showName = form.show_name.trim();
+
+    if (!showName || !form.start_time) {
+      alert(
+        "Please enter a show name and start time."
+      );
       return;
     }
 
@@ -135,7 +176,7 @@ export function ScheduleAdmin() {
       date,
       start_time: form.start_time,
       end_time: form.end_time || null,
-      show_name: form.show_name.trim(),
+      show_name: showName,
     };
 
     if (editing) {
@@ -145,7 +186,11 @@ export function ScheduleAdmin() {
         .eq("id", editing);
 
       if (error) {
-        console.error(error);
+        console.error(
+          "[Schedule] Failed to update:",
+          error
+        );
+
         alert(error.message);
         setSaving(false);
         return;
@@ -156,7 +201,11 @@ export function ScheduleAdmin() {
         .insert(payload);
 
       if (error) {
-        console.error(error);
+        console.error(
+          "[Schedule] Failed to add:",
+          error
+        );
+
         alert(error.message);
         setSaving(false);
         return;
@@ -165,13 +214,16 @@ export function ScheduleAdmin() {
 
     await loadSchedule();
 
-    setAddingDate(null);
-    setEditing(null);
+    cancelForm();
     setSaving(false);
   }
 
   async function deleteSlot(id: string) {
-    if (!confirm("Delete this schedule slot?")) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this schedule slot?"
+      )
+    ) {
       return;
     }
 
@@ -181,7 +233,11 @@ export function ScheduleAdmin() {
       .eq("id", id);
 
     if (error) {
-      console.error(error);
+      console.error(
+        "[Schedule] Failed to delete:",
+        error
+      );
+
       alert(error.message);
       return;
     }
@@ -215,6 +271,7 @@ export function ScheduleAdmin() {
       {/* Week controls */}
       <div className="mb-6 flex items-center justify-between gap-3">
         <button
+          type="button"
           onClick={previousWeek}
           className="rounded-full border border-base-line bg-base-panel px-4 py-2 text-sm text-ink-soft hover:text-ink"
         >
@@ -239,6 +296,7 @@ export function ScheduleAdmin() {
           </p>
 
           <button
+            type="button"
             onClick={thisWeek}
             className="mt-1 text-xs text-lime hover:underline"
           >
@@ -247,6 +305,7 @@ export function ScheduleAdmin() {
         </div>
 
         <button
+          type="button"
           onClick={nextWeek}
           className="rounded-full border border-base-line bg-base-panel px-4 py-2 text-sm text-ink-soft hover:text-ink"
         >
@@ -255,9 +314,14 @@ export function ScheduleAdmin() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-ink-faint">
-          Loading schedule...
-        </p>
+        <div className="space-y-3">
+          {[1, 2, 3].map((item) => (
+            <div
+              key={item}
+              className="h-20 animate-pulse rounded-2xl bg-base-raised"
+            />
+          ))}
+        </div>
       ) : (
         <div className="space-y-6">
           {days.map((day, index) => {
@@ -268,10 +332,12 @@ export function ScheduleAdmin() {
               (slot) => slot.date === dateString
             );
 
-            const isAdding = addingDate === dateString;
+            const isAdding =
+              addingDate === dateString;
 
             return (
-              <div key={day}>
+              <div key={dateString}>
+                {/* Day heading */}
                 <div className="mb-2 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-ink-soft">
@@ -287,15 +353,20 @@ export function ScheduleAdmin() {
                   </div>
 
                   <button
-                    onClick={() => startAdding(dateString)}
+                    type="button"
+                    onClick={() =>
+                      startAdding(dateString)
+                    }
                     className="rounded-full bg-lime px-3 py-1.5 text-xs font-semibold text-coal"
                   >
                     + Add slot
                   </button>
                 </div>
 
-                <div className="divide-y divide-base-line rounded-2xl border border-base-line">
-                  {slots.length === 0 && !isAdding ? (
+                {/* Slots */}
+                <div className="divide-y divide-base-line overflow-hidden rounded-2xl border border-base-line">
+                  {slots.length === 0 &&
+                  !isAdding ? (
                     <p className="px-5 py-4 text-sm text-ink-faint">
                       Nothing scheduled.
                     </p>
@@ -307,7 +378,9 @@ export function ScheduleAdmin() {
                           form={form}
                           setForm={setForm}
                           saving={saving}
-                          onSave={() => saveSlot(dateString)}
+                          onSave={() =>
+                            saveSlot(dateString)
+                          }
                           onCancel={cancelForm}
                         />
                       ) : (
@@ -316,9 +389,16 @@ export function ScheduleAdmin() {
                           className="flex items-center gap-4 px-5 py-3"
                         >
                           <span className="w-32 shrink-0 text-sm text-lime">
-                            {slot.start_time.slice(0, 5)}
+                            {slot.start_time.slice(
+                              0,
+                              5
+                            )}
+
                             {slot.end_time &&
-                              `–${slot.end_time.slice(0, 5)}`}
+                              `–${slot.end_time.slice(
+                                0,
+                                5
+                              )}`}
                           </span>
 
                           <span className="flex-1 text-sm text-ink">
@@ -326,14 +406,20 @@ export function ScheduleAdmin() {
                           </span>
 
                           <button
-                            onClick={() => startEditing(slot)}
+                            type="button"
+                            onClick={() =>
+                              startEditing(slot)
+                            }
                             className="text-xs font-medium text-ink-faint hover:text-lime"
                           >
                             Edit
                           </button>
 
                           <button
-                            onClick={() => deleteSlot(slot.id)}
+                            type="button"
+                            onClick={() =>
+                              deleteSlot(slot.id)
+                            }
                             className="text-xs font-medium text-red-400 hover:text-red-300"
                           >
                             Delete
@@ -343,12 +429,15 @@ export function ScheduleAdmin() {
                     )
                   )}
 
+                  {/* Add form */}
                   {isAdding && (
                     <ScheduleForm
                       form={form}
                       setForm={setForm}
                       saving={saving}
-                      onSave={() => saveSlot(dateString)}
+                      onSave={() =>
+                        saveSlot(dateString)
+                      }
                       onCancel={cancelForm}
                     />
                   )}
@@ -374,6 +463,7 @@ function ScheduleForm({
     start_time: string;
     end_time: string;
   };
+
   setForm: React.Dispatch<
     React.SetStateAction<{
       show_name: string;
@@ -381,22 +471,24 @@ function ScheduleForm({
       end_time: string;
     }>
   >;
+
   saving: boolean;
   onSave: () => void;
   onCancel: () => void;
 }) {
   return (
     <div className="grid gap-3 p-5 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+      {/* Show name */}
       <label className="text-xs text-ink-faint">
         Show name
 
         <input
           type="text"
           value={form.show_name}
-          onChange={(e) =>
+          onChange={(event) =>
             setForm((current) => ({
               ...current,
-              show_name: e.target.value,
+              show_name: event.target.value,
             }))
           }
           placeholder="e.g. Luma Drive"
@@ -404,40 +496,44 @@ function ScheduleForm({
         />
       </label>
 
+      {/* Start */}
       <label className="text-xs text-ink-faint">
         Start
 
         <input
           type="time"
           value={form.start_time}
-          onChange={(e) =>
+          onChange={(event) =>
             setForm((current) => ({
               ...current,
-              start_time: e.target.value,
+              start_time: event.target.value,
             }))
           }
           className="mt-1 rounded-xl border border-base-line bg-base-panel px-3 py-2 text-sm text-ink"
         />
       </label>
 
+      {/* End */}
       <label className="text-xs text-ink-faint">
         End
 
         <input
           type="time"
           value={form.end_time}
-          onChange={(e) =>
+          onChange={(event) =>
             setForm((current) => ({
               ...current,
-              end_time: e.target.value,
+              end_time: event.target.value,
             }))
           }
           className="mt-1 rounded-xl border border-base-line bg-base-panel px-3 py-2 text-sm text-ink"
         />
       </label>
 
+      {/* Buttons */}
       <div className="flex gap-2">
         <button
+          type="button"
           onClick={onSave}
           disabled={saving}
           className="rounded-full bg-lime px-4 py-2 text-xs font-semibold text-coal disabled:opacity-50"
@@ -446,8 +542,10 @@ function ScheduleForm({
         </button>
 
         <button
+          type="button"
           onClick={onCancel}
-          className="rounded-full border border-base-line px-4 py-2 text-xs text-ink-soft hover:text-ink"
+          disabled={saving}
+          className="rounded-full border border-base-line px-4 py-2 text-xs text-ink-soft hover:text-ink disabled:opacity-50"
         >
           Cancel
         </button>
