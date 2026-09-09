@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import {
   supabase,
@@ -6,7 +7,7 @@ import {
 
 interface Announcement {
   id: string;
-  message: string;
+  text: string;
   active: boolean;
   created_at: string;
 }
@@ -16,20 +17,26 @@ export function AnnouncementBanner() {
     useState<Announcement | null>(null);
 
   useEffect(() => {
-    async function loadAnnouncement() {
-      if (!isSupabaseConfigured) {
-        return;
-      }
+    if (!isSupabaseConfigured) {
+      return;
+    }
 
+    let cancelled = false;
+
+    async function loadAnnouncement() {
       const { data, error } = await supabase
         .from("announcements")
-        .select("id, message, active, created_at")
+        .select("id, text, active, created_at")
         .eq("active", true)
         .order("created_at", {
           ascending: false,
         })
         .limit(1)
         .maybeSingle();
+
+      if (cancelled) {
+        return;
+      }
 
       if (error) {
         console.error(
@@ -43,6 +50,17 @@ export function AnnouncementBanner() {
     }
 
     loadAnnouncement();
+
+    // Check for new announcements every 30 seconds.
+    const interval = setInterval(
+      loadAnnouncement,
+      30000
+    );
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
   if (!announcement) {
@@ -57,7 +75,7 @@ export function AnnouncementBanner() {
         </span>
 
         <p className="text-sm text-ink">
-          {announcement.message}
+          {announcement.text}
         </p>
       </div>
     </div>
