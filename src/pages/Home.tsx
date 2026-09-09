@@ -12,8 +12,6 @@ import { SectionHeading } from "../components/common/SectionHeading";
 import { useShows } from "../hooks/useShows";
 import { usePresenters } from "../hooks/usePresenters";
 
-import { ads } from "../data/ads";
-
 import {
   supabase,
   isSupabaseConfigured,
@@ -25,6 +23,16 @@ type ScheduleEntry = {
   start_time: string;
   end_time: string | null;
   show_name: string;
+};
+
+type Advertisement = {
+  id: string;
+  sponsor: string;
+  headline: string;
+  href: string;
+  cta: string;
+  kind: string;
+  active: boolean;
 };
 
 function getLocalDate() {
@@ -56,6 +64,12 @@ export function Home() {
 
   const [scheduleError, setScheduleError] =
     useState(false);
+
+  const [banner, setBanner] =
+    useState<Advertisement | null>(null);
+
+  const [bannerLoading, setBannerLoading] =
+    useState(true);
 
   /*
    * Load today's schedule directly from Supabase.
@@ -107,15 +121,45 @@ export function Home() {
   }, []);
 
   /*
-   * Homepage banner.
-   *
-   * NOTE:
-   * This is still using the old static ads.ts file.
-   * We can move ads to Supabase next.
+   * Load the active homepage advertisement from Supabase.
    */
-  const banner = ads.find(
-    (ad) => ad.kind === "homepage-banner"
-  );
+  useEffect(() => {
+    async function loadHomepageBanner() {
+      if (!isSupabaseConfigured) {
+        setBanner(null);
+        setBannerLoading(false);
+        return;
+      }
+
+      setBannerLoading(true);
+
+      const { data, error } = await supabase
+        .from("advertisements")
+        .select(
+          "id, sponsor, headline, href, cta, kind, active"
+        )
+        .eq("active", true)
+        .eq("kind", "homepage-banner")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error(
+          "[Supabase] Failed to load homepage advertisement:",
+          error
+        );
+
+        setBanner(null);
+      } else {
+        setBanner(data as Advertisement | null);
+      }
+
+      setBannerLoading(false);
+    }
+
+    loadHomepageBanner();
+  }, []);
 
   return (
     <>
@@ -163,7 +207,7 @@ export function Home() {
       </section>
 
       {/* Homepage advert */}
-      {banner && (
+      {!bannerLoading && banner && (
         <section className="mx-auto max-w-6xl px-4 pb-4 sm:px-6">
           <AdSlot ad={banner} />
         </section>
