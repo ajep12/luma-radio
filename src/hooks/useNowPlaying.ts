@@ -1,4 +1,4 @@
-```tsx
+
 import { useEffect, useState } from "react";
 import {
   isNowPlayingConfigured,
@@ -237,4 +237,3 @@ function formatPlayedAt(
     }
   );
 }
-```
