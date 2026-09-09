@@ -1,24 +1,12 @@
-tsx
 import { usePlayer } from "../../context/PlayerContext";
 import { useNowPlaying } from "../../hooks/useNowPlaying";
-import {
-  isRadioCastConfigured,
-  radioCastConfig,
-} from "../../config/radiocast";
+import { radioCastConfig } from "../../config/radiocast";
 import { site } from "../../config/site";
 import { Waveform } from "./Waveform";
 import { LiveIndicator } from "./LiveIndicator";
 import { PlayButton } from "./PlayButton";
 import { VolumeControl } from "./VolumeControl";
 
-/**
- * The station's primary live player. Talks to RadioCast in two possible
- * modes:
- *  - If VITE_RADIOCAST_PLAYER_EMBED_URL is set, RadioCast's own hosted
- *    player is embedded directly.
- *  - Otherwise, this custom UI plays VITE_RADIOCAST_STREAM_URL via the
- *    browser's <audio> element (see PlayerContext).
- */
 export function LivePlayer() {
   const { isPlaying, hasError, isConfigured } = usePlayer();
   const { data } = useNowPlaying();
@@ -85,22 +73,19 @@ export function LivePlayer() {
         </div>
 
         <div className="min-w-0 flex-1">
-          {/* Current song */}
           <p className="truncate font-display text-lg text-ink">
             {data?.song ?? site.name}
           </p>
 
-          {/* Artist */}
           <p className="truncate text-sm text-ink-faint">
             {data?.artist ?? site.tagline}
           </p>
 
-          {/* Current presenter / Auto DJ */}
+          {/* Presenter */}
           <p className="mt-1 truncate text-xs text-lime">
-            🎙️ {data?.presenter ?? "Auto DJ"}
+            {data?.presenter || "Auto DJ"}
           </p>
 
-          {/* Current show, if supplied by RadioCast */}
           {data?.showName && (
             <p className="mt-0.5 truncate text-xs text-lime">
               {data.showName}
