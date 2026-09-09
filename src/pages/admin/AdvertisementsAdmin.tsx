@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AdminHeading } from "./AdminHeading";
-import { supabase, isSupabaseConfigured } from "../../lib/supabase";
+import { supabase, isSupabaseConfigured } from "../../config/supabase";
 
 interface Advertisement {
   id: string;
