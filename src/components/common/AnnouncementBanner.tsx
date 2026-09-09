@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import {
   supabase,
@@ -51,7 +50,6 @@ export function AnnouncementBanner() {
 
     loadAnnouncement();
 
-    // Check for new announcements every 30 seconds.
     const interval = setInterval(
       loadAnnouncement,
       30000
