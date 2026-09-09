@@ -17,6 +17,7 @@ export function Announcements() {
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     loadAnnouncements();
@@ -24,6 +25,7 @@ export function Announcements() {
 
   async function loadAnnouncements() {
     if (!isSupabaseConfigured) {
+      setErrorMessage("Supabase is not configured.");
       setLoading(false);
       return;
     }
@@ -34,10 +36,8 @@ export function Announcements() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error(
-        "[Supabase] Failed to load announcements:",
-        error
-      );
+      console.error("LOAD ANNOUNCEMENTS ERROR:", error);
+      setErrorMessage(error.message);
       setLoading(false);
       return;
     }
@@ -47,36 +47,45 @@ export function Announcements() {
   }
 
   async function add() {
+    console.log("POST BUTTON CLICKED");
+    console.log("Draft:", draft);
+
     const text = draft.trim();
 
-    if (!text || posting) {
+    if (!text) {
+      setErrorMessage("Please write an announcement first.");
       return;
     }
 
     if (!isSupabaseConfigured) {
+      setErrorMessage("Supabase is not configured.");
       return;
     }
 
     setPosting(true);
+    setErrorMessage("");
+
+    console.log("Sending announcement to Supabase...");
 
     const { data, error } = await supabase
       .from("announcements")
       .insert({
-        text,
+        text: text,
         active: true,
       })
       .select("id, text, active, created_at")
       .single();
 
     if (error) {
-      console.error(
-        "[Supabase] Failed to create announcement:",
-        error
+      console.error("CREATE ANNOUNCEMENT ERROR:", error);
+      setErrorMessage(
+        `Could not post announcement: ${error.message}`
       );
-
       setPosting(false);
       return;
     }
+
+    console.log("ANNOUNCEMENT CREATED:", data);
 
     setAnnouncements((prev) => [
       data,
@@ -94,15 +103,13 @@ export function Announcements() {
       .eq("id", id);
 
     if (error) {
-      console.error(
-        "[Supabase] Failed to delete announcement:",
-        error
-      );
+      console.error("DELETE ANNOUNCEMENT ERROR:", error);
+      setErrorMessage(error.message);
       return;
     }
 
     setAnnouncements((prev) =>
-      prev.filter((announcement) => announcement.id !== id)
+      prev.filter((item) => item.id !== id)
     );
   }
 
@@ -119,10 +126,8 @@ export function Announcements() {
       .single();
 
     if (error) {
-      console.error(
-        "[Supabase] Failed to update announcement:",
-        error
-      );
+      console.error("UPDATE ANNOUNCEMENT ERROR:", error);
+      setErrorMessage(error.message);
       return;
     }
 
@@ -158,13 +163,20 @@ export function Announcements() {
         />
 
         <button
+          type="button"
           onClick={add}
-          disabled={posting || !draft.trim()}
-          className="rounded-xl bg-lime px-4 py-2.5 text-sm font-semibold text-coal disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={posting}
+          className="rounded-xl bg-lime px-4 py-2.5 text-sm font-semibold text-coal disabled:opacity-50"
         >
           {posting ? "Posting..." : "Post"}
         </button>
       </div>
+
+      {errorMessage && (
+        <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {errorMessage}
+        </div>
+      )}
 
       <div className="divide-y divide-base-line rounded-2xl border border-base-line">
         {loading ? (
@@ -181,13 +193,13 @@ export function Announcements() {
               key={announcement.id}
               className="flex items-center justify-between gap-4 px-5 py-3"
             >
-              <div className="min-w-0">
+              <div>
                 <p
-                  className={`text-sm ${
+                  className={
                     announcement.active
-                      ? "text-ink"
-                      : "text-ink-faint line-through"
-                  }`}
+                      ? "text-sm text-ink"
+                      : "text-sm text-ink-faint line-through"
+                  }
                 >
                   {announcement.text}
                 </p>
@@ -199,8 +211,9 @@ export function Announcements() {
                 </p>
               </div>
 
-              <div className="flex shrink-0 items-center gap-3">
+              <div className="flex gap-3">
                 <button
+                  type="button"
                   onClick={() =>
                     toggleActive(announcement)
                   }
@@ -212,6 +225,7 @@ export function Announcements() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() =>
                     remove(announcement.id)
                   }
