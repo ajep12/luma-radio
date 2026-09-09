@@ -1,3 +1,4 @@
+```tsx
 import { useEffect, useState } from "react";
 import {
   supabase,
@@ -83,6 +84,11 @@ export function useShows() {
           }))
         : [];
 
+      console.log(
+        "[Supabase] Shows loaded:",
+        liveShows
+      );
+
       setShows(liveShows);
       setLoading(false);
       setIsLive(true);
@@ -101,3 +107,4 @@ export function useShows() {
     isLive,
   };
 }
+```
