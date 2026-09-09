@@ -1,3 +1,4 @@
+```tsx
 import { useEffect, useState } from "react";
 import {
   isNowPlayingConfigured,
@@ -90,7 +91,8 @@ export function useNowPlaying(): NowPlayingState {
           );
         }
 
-        const json: RadioCastNowPlayingResponse = await res.json();
+        const json: RadioCastNowPlayingResponse =
+          await res.json();
 
         if (cancelled) {
           return;
@@ -99,47 +101,80 @@ export function useNowPlaying(): NowPlayingState {
         const currentSong = json.now_playing?.song;
         const isLive = json.live?.is_live === true;
 
-        const recentlyPlayed: RecentlyPlayedTrack[] = Array.isArray(
-          json.song_history
-        )
-          ? json.song_history
-              .filter((item) => item?.song)
-              .map((item, index) => ({
-                id: String(
-                  item.sh_id ??
-                    `${item.song?.artist ?? "unknown"}-${item.song?.title ?? "unknown"}-${index}`
-                ),
-                song: item.song?.title ?? "Unknown song",
-                artist: item.song?.artist ?? "Unknown artist",
-                art: item.song?.art,
-                playedAt: formatPlayedAt(item.played_at),
-              }))
-          : [];
+        const recentlyPlayed: RecentlyPlayedTrack[] =
+          Array.isArray(json.song_history)
+            ? json.song_history
+                .filter((item) => item?.song)
+                .map((item, index) => ({
+                  id: String(
+                    item.sh_id ??
+                      `${item.song?.artist ?? "unknown"}-${item.song?.title ?? "unknown"}-${index}`
+                  ),
+                  song:
+                    item.song?.title ??
+                    "Unknown song",
+                  artist:
+                    item.song?.artist ??
+                    "Unknown artist",
+                  art: item.song?.art,
+                  playedAt: formatPlayedAt(
+                    item.played_at
+                  ),
+                }))
+            : [];
+
+        /*
+         * If RadioCast tells us the station is not live,
+         * don't display the old song/presenter.
+         */
+        if (!isLive && !currentSong) {
+          setState({
+            data: null,
+            recentlyPlayed,
+            loading: false,
+            error: false,
+          });
+
+          return;
+        }
 
         setState({
           data: {
             song: currentSong?.title,
             artist: currentSong?.artist,
             artwork: currentSong?.art,
+
             presenter: isLive
-              ? json.live?.streamer_name || undefined
+              ? json.live?.streamer_name ||
+                undefined
               : undefined,
-            listeners: json.listeners?.current,
+
+            listeners:
+              json.listeners?.current,
           },
+
           recentlyPlayed,
           loading: false,
           error: false,
         });
       } catch (err) {
         if (!cancelled) {
-          setState((prev) => ({
-            ...prev,
+          /*
+           * IMPORTANT:
+           * Clear the previous Now Playing data.
+           *
+           * Previously this used:
+           *   ...prev
+           *
+           * which meant the last song stayed visible
+           * after the station went offline.
+           */
+          setState({
+            data: null,
+            recentlyPlayed: [],
             loading: false,
             error: true,
-            recentlyPlayed: Array.isArray(prev.recentlyPlayed)
-              ? prev.recentlyPlayed
-              : [],
-          }));
+          });
         }
 
         console.warn(
@@ -164,15 +199,21 @@ export function useNowPlaying(): NowPlayingState {
 
   return {
     data: state.data,
-    recentlyPlayed: Array.isArray(state.recentlyPlayed)
+
+    recentlyPlayed: Array.isArray(
+      state.recentlyPlayed
+    )
       ? state.recentlyPlayed
       : [],
+
     loading: state.loading,
     error: state.error,
   };
 }
 
-function formatPlayedAt(value?: number | string): string {
+function formatPlayedAt(
+  value?: number | string
+): string {
   if (value === undefined || value === null) {
     return "";
   }
@@ -188,8 +229,12 @@ function formatPlayedAt(value?: number | string): string {
     return "";
   }
 
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return new Date(timestamp).toLocaleTimeString(
+    [],
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+    }
+  );
 }
+```
