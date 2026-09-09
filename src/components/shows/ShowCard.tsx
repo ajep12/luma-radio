@@ -1,3 +1,4 @@
+```tsx
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -21,15 +22,20 @@ type Presenter = {
 };
 
 export function ShowCard({ show }: { show: Show }) {
-  const [presenter, setPresenter] =
-    useState<Presenter | null>(null);
+  const [presenter, setPresenter] = useState<Presenter | null>(null);
 
   useEffect(() => {
     async function loadPresenter() {
+      // No presenter assigned
       if (!show.presenter_id || !isSupabaseConfigured) {
         setPresenter(null);
         return;
       }
+
+      console.log(
+        "[ShowCard] Looking for presenter:",
+        show.presenter_id
+      );
 
       const { data, error } = await supabase
         .from("presenters")
@@ -39,12 +45,17 @@ export function ShowCard({ show }: { show: Show }) {
 
       if (error) {
         console.error(
-          "[Supabase] Failed to load presenter:",
+          "[ShowCard] Failed to load presenter:",
           error
         );
         setPresenter(null);
         return;
       }
+
+      console.log(
+        "[ShowCard] Presenter found:",
+        data
+      );
 
       setPresenter(data as Presenter | null);
     }
@@ -57,6 +68,7 @@ export function ShowCard({ show }: { show: Show }) {
       to={`/shows/${show.id}`}
       className="group flex flex-col overflow-hidden rounded-2xl border border-base-line bg-base-panel transition-colors hover:border-lime/40"
     >
+      {/* Artwork */}
       <div className="aspect-square overflow-hidden">
         {show.artwork ? (
           <img
@@ -73,6 +85,7 @@ export function ShowCard({ show }: { show: Show }) {
         )}
       </div>
 
+      {/* Details */}
       <div className="flex flex-1 flex-col gap-2 p-5">
         {show.time && (
           <p className="text-xs text-lime">
@@ -105,3 +118,4 @@ export function ShowCard({ show }: { show: Show }) {
     </Link>
   );
 }
+```
