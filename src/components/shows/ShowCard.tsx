@@ -1,4 +1,10 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+
+import {
+  supabase,
+  isSupabaseConfigured,
+} from "../../config/supabase";
 
 type Show = {
   id: string;
@@ -6,7 +12,7 @@ type Show = {
   artwork: string | null;
   description: string | null;
   time: string | null;
-  presenterId: string | null;
+  presenter_id: string | null;
 };
 
 type Presenter = {
@@ -14,13 +20,38 @@ type Presenter = {
   name: string;
 };
 
-export function ShowCard({
-  show,
-  presenter,
-}: {
-  show: Show;
-  presenter?: Presenter | null;
-}) {
+export function ShowCard({ show }: { show: Show }) {
+  const [presenter, setPresenter] =
+    useState<Presenter | null>(null);
+
+  useEffect(() => {
+    async function loadPresenter() {
+      if (!show.presenter_id || !isSupabaseConfigured) {
+        setPresenter(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("presenters")
+        .select("id, name")
+        .eq("id", show.presenter_id)
+        .maybeSingle();
+
+      if (error) {
+        console.error(
+          "[Supabase] Failed to load presenter:",
+          error
+        );
+        setPresenter(null);
+        return;
+      }
+
+      setPresenter(data as Presenter | null);
+    }
+
+    loadPresenter();
+  }, [show.presenter_id]);
+
   return (
     <Link
       to={`/shows/${show.id}`}
@@ -61,7 +92,9 @@ export function ShowCard({
 
         <div className="mt-auto flex items-center justify-between pt-2">
           <span className="text-xs text-ink-soft">
-            {presenter ? `with ${presenter.name}` : "Luma Radio"}
+            {presenter
+              ? `with ${presenter.name}`
+              : "Luma Radio"}
           </span>
 
           <span className="rounded-full border border-base-line px-3 py-1.5 text-xs font-medium text-ink transition-colors group-hover:border-lime group-hover:text-lime">
