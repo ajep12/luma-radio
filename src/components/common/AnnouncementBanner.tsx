@@ -1,4 +1,4 @@
-
+```tsx
 import { useEffect, useState } from "react";
 import {
   supabase,
@@ -81,3 +81,4 @@ export function AnnouncementBanner() {
     </div>
   );
 }
+```
