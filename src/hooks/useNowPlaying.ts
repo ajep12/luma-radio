@@ -42,6 +42,8 @@ interface RadioCastHistoryItem {
 }
 
 interface RadioCastNowPlayingResponse {
+  is_online?: boolean;
+
   now_playing?: {
     sh_id?: number | string;
     played_at?: number | string;
@@ -98,9 +100,20 @@ export function useNowPlaying(): NowPlayingState {
           return;
         }
 
-        const currentSong = json.now_playing?.song;
-        const isLive = json.live?.is_live === true;
+        /*
+         * RadioCast can still return the previous song in
+         * now_playing even when the station is offline.
+         *
+         * Therefore we MUST check is_online before using
+         * now_playing.
+         */
+        const isOnline = json.is_online === true;
 
+        /*
+         * Build recently played history first.
+         * This can still be displayed while the station
+         * is offline if your UI supports it.
+         */
         const recentlyPlayed: RecentlyPlayedTrack[] =
           Array.isArray(json.song_history)
             ? json.song_history
@@ -124,10 +137,17 @@ export function useNowPlaying(): NowPlayingState {
             : [];
 
         /*
-         * If RadioCast tells us the station is not live,
-         * don't display the old song/presenter.
+         * STATION OFFLINE
+         *
+         * RadioCast may still return something such as:
+         *
+         * "Fame Is a Gun"
+         *
+         * in now_playing.
+         *
+         * We deliberately ignore it when is_online is false.
          */
-        if (!isLive && !currentSong) {
+        if (!isOnline) {
           setState({
             data: null,
             recentlyPlayed,
@@ -138,12 +158,23 @@ export function useNowPlaying(): NowPlayingState {
           return;
         }
 
+        /*
+         * Station is online, so now_playing is safe to use.
+         */
+        const currentSong = json.now_playing?.song;
+        const isLive = json.live?.is_live === true;
+
         setState({
           data: {
             song: currentSong?.title,
             artist: currentSong?.artist,
             artwork: currentSong?.art,
 
+            /*
+             * If a real presenter is live, use their name.
+             * Otherwise leave presenter undefined so the UI
+             * can identify it as Auto DJ if required.
+             */
             presenter: isLive
               ? json.live?.streamer_name ||
                 undefined
@@ -160,14 +191,9 @@ export function useNowPlaying(): NowPlayingState {
       } catch (err) {
         if (!cancelled) {
           /*
-           * IMPORTANT:
-           * Clear the previous Now Playing data.
-           *
-           * Previously this used:
-           *   ...prev
-           *
-           * which meant the last song stayed visible
-           * after the station went offline.
+           * Clear the previous song if RadioCast cannot
+           * be reached. This prevents stale Now Playing
+           * information remaining on the website.
            */
           setState({
             data: null,
@@ -184,8 +210,14 @@ export function useNowPlaying(): NowPlayingState {
       }
     }
 
+    /*
+     * Load immediately.
+     */
     poll();
 
+    /*
+     * Continue polling using your existing interval.
+     */
     const interval = setInterval(
       poll,
       radioCastConfig.nowPlayingPollIntervalMs
