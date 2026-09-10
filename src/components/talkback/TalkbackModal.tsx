@@ -8,11 +8,13 @@ import {
 interface TalkbackModalProps {
   open: boolean;
   onClose: () => void;
+  autoDj: boolean;
 }
 
 export function TalkbackModal({
   open,
   onClose,
+  autoDj,
 }: TalkbackModalProps) {
   const [name, setName] = useState("");
   const [song, setSong] = useState("");
@@ -49,6 +51,13 @@ export function TalkbackModal({
     };
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (autoDj) {
+      setError("");
+      setSuccess(false);
+    }
+  }, [autoDj]);
+
   if (!open) {
     return null;
   }
@@ -60,6 +69,13 @@ export function TalkbackModal({
 
     setError("");
     setSuccess(false);
+
+    if (autoDj) {
+      setError(
+        "Talkback is unavailable while Auto DJ is running."
+      );
+      return;
+    }
 
     if (
       !name.trim() &&
@@ -170,6 +186,13 @@ export function TalkbackModal({
             Send us a message or request a song. Everything is
             optional — just send whatever you want us to hear.
           </p>
+
+          {autoDj && (
+            <div className="rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink-faint">
+              Talkbacks are currently unavailable while Auto DJ
+              is running.
+            </div>
+          )}
 
           <div>
             <label
@@ -282,10 +305,14 @@ export function TalkbackModal({
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || autoDj}
               className="flex-1 rounded-xl bg-lime px-5 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? "Sending..." : "Send Talkback"}
+              {autoDj
+                ? "Unavailable"
+                : submitting
+                  ? "Sending..."
+                  : "Send Talkback"}
             </button>
           </div>
         </form>
