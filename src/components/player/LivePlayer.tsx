@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { usePlayer } from "../../context/PlayerContext";
 import { useNowPlaying } from "../../hooks/useNowPlaying";
 import { radioCastConfig } from "../../config/radiocast";
@@ -6,10 +7,12 @@ import { Waveform } from "./Waveform";
 import { LiveIndicator } from "./LiveIndicator";
 import { PlayButton } from "./PlayButton";
 import { VolumeControl } from "./VolumeControl";
+import { TalkbackModal } from "../talkback/TalkbackModal";
 
 export function LivePlayer() {
   const { isPlaying, hasError, isConfigured } = usePlayer();
   const { data } = useNowPlaying();
+  const [talkbackOpen, setTalkbackOpen] = useState(false);
 
   if (radioCastConfig.playerEmbedUrl) {
     return (
@@ -81,7 +84,6 @@ export function LivePlayer() {
             {data?.artist ?? site.tagline}
           </p>
 
-          {/* Presenter */}
           <p className="mt-1 truncate text-xs text-lime">
             {data?.presenter || "Auto DJ"}
           </p>
@@ -101,6 +103,14 @@ export function LivePlayer() {
         <VolumeControl />
       </div>
 
+      <button
+        type="button"
+        onClick={() => setTalkbackOpen(true)}
+        className="relative mt-5 w-full rounded-xl border border-base-line px-5 py-3 text-sm font-semibold text-ink transition-colors hover:border-lime hover:text-lime"
+      >
+        Talkback
+      </button>
+
       {!isConfigured && (
         <p className="relative mt-5 rounded-lg border border-base-line bg-base px-3 py-2 text-xs text-ink-faint">
           RadioCast stream not configured yet. Add{" "}
@@ -118,6 +128,11 @@ export function LivePlayer() {
           stream URL, or try again shortly.
         </p>
       )}
+
+      <TalkbackModal
+        open={talkbackOpen}
+        onClose={() => setTalkbackOpen(false)}
+      />
     </div>
   );
 }
