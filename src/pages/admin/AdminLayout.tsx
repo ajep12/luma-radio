@@ -12,7 +12,6 @@ const adminNav = [
   { label: "Announcements", to: "/admin/announcements" },
   { label: "Advertisements", to: "/admin/advertisements" },
   { label: "Talkbacks", to: "/admin/requests" },
-  { label: "Users", to: "/admin/users" },
   { label: "Station settings", to: "/admin/settings" },
 ];
 
