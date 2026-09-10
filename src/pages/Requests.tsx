@@ -1,93 +1,211 @@
+
 import { FormEvent, useState } from "react";
+import {
+  supabase,
+  isSupabaseConfigured,
+} from "../config/supabase";
 
-/**
- * Song requests interface. This does not yet persist anywhere — there is no
- * request backend wired up. When you're ready to store requests, connect
- * this form's `onSubmit` to your database of choice (see README.md, "Future
- * Supabase integration") instead of the local `setSubmitted` call below.
- */
 export function Requests() {
-  const [submitted, setSubmitted] = useState(false);
+  const [name, setName] = useState("");
+  const [song, setSong] = useState("");
+  const [artist, setArtist] = useState("");
+  const [message, setMessage] = useState("");
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    // TODO: send to your requests backend/database once connected.
-    setSubmitted(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setError("");
+    setSuccess(false);
+
+    // Make sure the user has entered something
+    if (
+      !name.trim() &&
+      !song.trim() &&
+      !artist.trim() &&
+      !message.trim()
+    ) {
+      setError("Please enter a message or request.");
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      setError("Talkbacks are currently unavailable.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    const { error: insertError } = await supabase
+      .from("requests")
+      .insert({
+        name: name.trim() || null,
+        song: song.trim() || null,
+        artist: artist.trim() || null,
+        message: message.trim() || null,
+        status: "pending",
+      });
+
+    setSubmitting(false);
+
+    if (insertError) {
+      console.error(
+        "[Supabase] Talkback submission failed:",
+        insertError
+      );
+
+      setError("Something went wrong. Please try again.");
+      return;
+    }
+
+    // Clear the form
+    setName("");
+    setSong("");
+    setArtist("");
+    setMessage("");
+
+    setSuccess(true);
   }
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-14 sm:px-6">
-      <p className="text-sm font-medium text-lime">Requests</p>
-      <h1 className="mt-2 font-display text-4xl text-ink sm:text-5xl">Request a song</h1>
-      <p className="mt-3 text-ink-faint">
-        Tell us what you want to hear and we'll try to get it on air.
+    <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
+      {/* Page heading */}
+      <p className="text-sm font-medium text-lime">
+        Talkback
       </p>
 
-      {submitted ? (
-        <div className="mt-10 rounded-2xl border border-lime/40 bg-lime/5 p-6">
-          <p className="font-display text-lg text-ink">Request sent</p>
-          <p className="mt-1 text-sm text-ink-faint">
-            Thanks — your request has been queued for the studio.
-          </p>
-          <button
-            onClick={() => setSubmitted(false)}
-            className="mt-4 text-sm font-medium text-lime hover:underline"
-          >
-            Send another request
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="mt-10 space-y-5">
-          <Field label="Song" name="song" placeholder="e.g. Halfway Home" required />
-          <Field label="Artist" name="artist" placeholder="e.g. Nova Bloom" required />
-          <Field label="Your name" name="name" placeholder="What should we call you?" required />
-          <div>
-            <label className="mb-1.5 block text-sm text-ink-soft" htmlFor="message">
-              Message (optional)
-            </label>
-            <textarea
-              id="message"
-              name="message"
-              rows={3}
-              placeholder="Dedications, shout-outs, anything else..."
-              className="w-full rounded-xl border border-base-line bg-base-panel px-4 py-3 text-sm text-ink placeholder:text-ink-faint focus:border-lime"
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full rounded-full bg-lime py-3.5 text-sm font-semibold text-coal transition-transform hover:scale-[1.01]"
-          >
-            Send request
-          </button>
-        </form>
-      )}
-    </div>
-  );
-}
+      <h1 className="mt-2 font-display text-4xl text-ink sm:text-5xl">
+        Have your say
+      </h1>
 
-function Field({
-  label,
-  name,
-  placeholder,
-  required,
-}: {
-  label: string;
-  name: string;
-  placeholder: string;
-  required?: boolean;
-}) {
-  return (
-    <div>
-      <label className="mb-1.5 block text-sm text-ink-soft" htmlFor={name}>
-        {label}
-      </label>
-      <input
-        id={name}
-        name={name}
-        placeholder={placeholder}
-        required={required}
-        className="w-full rounded-xl border border-base-line bg-base-panel px-4 py-3 text-sm text-ink placeholder:text-ink-faint focus:border-lime"
-      />
+      <p className="mt-3 max-w-xl text-ink-faint">
+        Send a message to Luma or request a song. Your Talkback
+        will be sent straight to the Luma team.
+      </p>
+
+      {/* Form */}
+      <form
+        onSubmit={handleSubmit}
+        className="mt-10 space-y-6 rounded-2xl border border-base-line bg-base-panel p-6 sm:p-8"
+      >
+        {/* Name */}
+        <div>
+          <label
+            htmlFor="name"
+            className="mb-2 block text-sm font-medium text-ink"
+          >
+            Your name
+            <span className="ml-1 text-xs text-ink-faint">
+              (optional)
+            </span>
+          </label>
+
+          <input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Your name"
+            maxLength={100}
+            className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
+          />
+        </div>
+
+        {/* Song */}
+        <div>
+          <label
+            htmlFor="song"
+            className="mb-2 block text-sm font-medium text-ink"
+          >
+            Song
+            <span className="ml-1 text-xs text-ink-faint">
+              (optional)
+            </span>
+          </label>
+
+          <input
+            id="song"
+            type="text"
+            value={song}
+            onChange={(event) => setSong(event.target.value)}
+            placeholder="Song title"
+            maxLength={200}
+            className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
+          />
+        </div>
+
+        {/* Artist */}
+        <div>
+          <label
+            htmlFor="artist"
+            className="mb-2 block text-sm font-medium text-ink"
+          >
+            Artist
+            <span className="ml-1 text-xs text-ink-faint">
+              (optional)
+            </span>
+          </label>
+
+          <input
+            id="artist"
+            type="text"
+            value={artist}
+            onChange={(event) => setArtist(event.target.value)}
+            placeholder="Artist name"
+            maxLength={200}
+            className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
+          />
+        </div>
+
+        {/* Message */}
+        <div>
+          <label
+            htmlFor="message"
+            className="mb-2 block text-sm font-medium text-ink"
+          >
+            Message
+            <span className="ml-1 text-xs text-ink-faint">
+              (optional)
+            </span>
+          </label>
+
+          <textarea
+            id="message"
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder="Write a message to the Luma team..."
+            rows={5}
+            maxLength={1000}
+            className="w-full resize-none rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
+          />
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink-faint">
+            {error}
+          </div>
+        )}
+
+        {/* Success */}
+        {success && (
+          <div className="rounded-xl border border-lime/30 bg-lime/5 px-4 py-3 text-sm text-lime">
+            Your Talkback has been sent to the Luma team!
+          </div>
+        )}
+
+        {/* Submit */}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full rounded-xl bg-lime px-5 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {submitting ? "Sending..." : "Send Talkback"}
+        </button>
+      </form>
     </div>
   );
 }
