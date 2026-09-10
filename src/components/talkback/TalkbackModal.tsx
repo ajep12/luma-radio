@@ -1,5 +1,5 @@
-
 import { FormEvent, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   supabase,
   isSupabaseConfigured,
@@ -115,9 +115,9 @@ export function TalkbackModal({
     }
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex min-h-screen w-screen items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm"
       onMouseDown={handleBackdropClick}
     >
       <div
@@ -186,9 +186,7 @@ export function TalkbackModal({
               id="talkback-name"
               type="text"
               value={name}
-              onChange={(event) =>
-                setName(event.target.value)
-              }
+              onChange={(event) => setName(event.target.value)}
               placeholder="Your name"
               maxLength={100}
               className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
@@ -210,9 +208,7 @@ export function TalkbackModal({
               id="talkback-song"
               type="text"
               value={song}
-              onChange={(event) =>
-                setSong(event.target.value)
-              }
+              onChange={(event) => setSong(event.target.value)}
               placeholder="Song title"
               maxLength={200}
               className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
@@ -234,9 +230,7 @@ export function TalkbackModal({
               id="talkback-artist"
               type="text"
               value={artist}
-              onChange={(event) =>
-                setArtist(event.target.value)
-              }
+              onChange={(event) => setArtist(event.target.value)}
               placeholder="Artist name"
               maxLength={200}
               className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
@@ -257,9 +251,7 @@ export function TalkbackModal({
             <textarea
               id="talkback-message"
               value={message}
-              onChange={(event) =>
-                setMessage(event.target.value)
-              }
+              onChange={(event) => setMessage(event.target.value)}
               placeholder="Write a message to Luma..."
               rows={4}
               maxLength={1000}
@@ -298,6 +290,7 @@ export function TalkbackModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
