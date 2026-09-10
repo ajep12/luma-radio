@@ -1,6 +1,6 @@
-
 import { NavLink, Outlet, Link } from "react-router-dom";
 import { Logo } from "../../components/layout/Logo";
+import { MiniPlayer } from "../../components/layout/MiniPlayer";
 import { useAuth } from "../../context/AuthContext";
 import { isAdminEmail } from "../../config/admin";
 
@@ -30,6 +30,7 @@ export function AdminLayout() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-base text-center text-ink">
         <p>You need to log in to view this page.</p>
+
         <Link
           to="/account/login"
           className="rounded-full bg-lime px-6 py-3 text-sm font-semibold text-coal"
@@ -44,6 +45,7 @@ export function AdminLayout() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-base text-center text-ink">
         <p>You don't have access to this page.</p>
+
         <Link
           to="/"
           className="text-lime hover:underline"
@@ -59,6 +61,7 @@ export function AdminLayout() {
       <aside className="hidden w-64 shrink-0 border-r border-base-line bg-base-raised sm:flex sm:flex-col">
         <div className="border-b border-base-line px-5 py-5">
           <Logo />
+
           <p className="mt-1 text-xs text-ink-faint">
             Station admin
           </p>
@@ -98,10 +101,12 @@ export function AdminLayout() {
           <Logo />
         </header>
 
-        <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
+        <main className="mx-auto max-w-5xl px-5 py-8 pb-32 sm:px-8">
           <Outlet />
         </main>
       </div>
+
+      <MiniPlayer />
     </div>
   );
 }
