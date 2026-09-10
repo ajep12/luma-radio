@@ -14,6 +14,8 @@ export function LivePlayer() {
   const { data } = useNowPlaying();
   const [talkbackOpen, setTalkbackOpen] = useState(false);
 
+  const autoDj = !data?.presenter;
+
   if (radioCastConfig.playerEmbedUrl) {
     return (
       <>
@@ -29,6 +31,7 @@ export function LivePlayer() {
         <TalkbackModal
           open={talkbackOpen}
           onClose={() => setTalkbackOpen(false)}
+          autoDj={autoDj}
         />
       </>
     );
@@ -141,6 +144,7 @@ export function LivePlayer() {
       <TalkbackModal
         open={talkbackOpen}
         onClose={() => setTalkbackOpen(false)}
+        autoDj={autoDj}
       />
     </>
   );
