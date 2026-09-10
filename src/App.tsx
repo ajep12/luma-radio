@@ -1,3 +1,4 @@
+
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PlayerProvider } from "./context/PlayerContext";
 import { AuthProvider } from "./context/AuthContext";
@@ -29,6 +30,7 @@ import { PresentersAdmin } from "./pages/admin/PresentersAdmin";
 import { ScheduleAdmin } from "./pages/admin/ScheduleAdmin";
 import { Announcements } from "./pages/admin/Announcements";
 import { AdvertisementsAdmin } from "./pages/admin/AdvertisementsAdmin";
+import { RequestsAdmin } from "./pages/admin/RequestsAdmin";
 import { Pages } from "./pages/admin/Pages";
 import { Users } from "./pages/admin/Users";
 import { Settings } from "./pages/admin/Settings";
@@ -46,17 +48,32 @@ export default function App() {
               <Route path="/shows" element={<Shows />} />
               <Route path="/shows/:showId" element={<ShowDetail />} />
               <Route path="/presenters" element={<Presenters />} />
-              <Route path="/recently-played" element={<RecentlyPlayed />} />
+              <Route
+                path="/recently-played"
+                element={<RecentlyPlayed />}
+              />
               <Route path="/requests" element={<Requests />} />
               <Route path="/search" element={<Search />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
 
-              <Route path="/account/login" element={<Login />} />
-              <Route path="/account/signup" element={<Signup />} />
-              <Route path="/account/profile" element={<Profile />} />
-              <Route path="/account/settings" element={<AccountSettings />} />
+              <Route
+                path="/account/login"
+                element={<Login />}
+              />
+              <Route
+                path="/account/signup"
+                element={<Signup />}
+              />
+              <Route
+                path="/account/profile"
+                element={<Profile />}
+              />
+              <Route
+                path="/account/settings"
+                element={<AccountSettings />}
+              />
 
               <Route path="*" element={<NotFound />} />
             </Route>
@@ -64,10 +81,26 @@ export default function App() {
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="shows" element={<ShowsAdmin />} />
-              <Route path="presenters" element={<PresentersAdmin />} />
-              <Route path="schedule" element={<ScheduleAdmin />} />
-              <Route path="announcements" element={<Announcements />} />
-              <Route path="advertisements" element={<AdvertisementsAdmin />} />
+              <Route
+                path="presenters"
+                element={<PresentersAdmin />}
+              />
+              <Route
+                path="schedule"
+                element={<ScheduleAdmin />}
+              />
+              <Route
+                path="announcements"
+                element={<Announcements />}
+              />
+              <Route
+                path="advertisements"
+                element={<AdvertisementsAdmin />}
+              />
+              <Route
+                path="requests"
+                element={<RequestsAdmin />}
+              />
               <Route path="pages" element={<Pages />} />
               <Route path="users" element={<Users />} />
               <Route path="settings" element={<Settings />} />
