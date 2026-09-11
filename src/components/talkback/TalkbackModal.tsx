@@ -95,45 +95,70 @@ export function TalkbackModal({
 
     setSubmitting(true);
 
-    const { data: result, error: functionError } =
-      await supabase.functions.invoke("submit-talkback", {
-        body: {
-          name: name.trim() || null,
-          song: song.trim() || null,
-          artist: artist.trim() || null,
-          message: message.trim() || null,
-        },
-      });
+    try {
+      const { data: result, error: functionError } =
+        await supabase.functions.invoke("submit-talkback", {
+          body: {
+            name: name.trim() || null,
+            song: song.trim() || null,
+            artist: artist.trim() || null,
+            message: message.trim() || null,
+          },
+        });
 
-    setSubmitting(false);
+      if (functionError) {
+        const response = (functionError as any).context;
 
-    if (functionError) {
-      console.error(
-        "[Talkback] Submission failed:",
-        functionError
-      );
+        if (response) {
+          try {
+            const errorData = await response.json();
 
+            if (errorData?.banned) {
+              setError(
+                "Talkbacks are unavailable from this connection."
+              );
+              return;
+            }
+
+            if (errorData?.error) {
+              setError(errorData.error);
+              return;
+            }
+          } catch {}
+        }
+
+        console.error(
+          "[Talkback] Submission failed:",
+          functionError
+        );
+
+        setError("Something went wrong. Please try again.");
+        return;
+      }
+
+      if (result?.banned) {
+        setError(
+          "Talkbacks are unavailable from this connection."
+        );
+        return;
+      }
+
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
+
+      setName("");
+      setSong("");
+      setArtist("");
+      setMessage("");
+      setSuccess(true);
+    } catch (error) {
+      console.error("[Talkback] Submission failed:", error);
       setError("Something went wrong. Please try again.");
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    if (result?.banned) {
-      setError(
-        "Talkbacks are unavailable from this connection."
-      );
-      return;
-    }
-
-    if (result?.error) {
-      setError(result.error);
-      return;
-    }
-
-    setName("");
-    setSong("");
-    setArtist("");
-    setMessage("");
-    setSuccess(true);
   }
 
   function handleBackdropClick(
