@@ -1,3 +1,4 @@
+
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -94,25 +95,37 @@ export function TalkbackModal({
 
     setSubmitting(true);
 
-    const { error: insertError } = await supabase
-      .from("requests")
-      .insert({
-        name: name.trim() || null,
-        song: song.trim() || null,
-        artist: artist.trim() || null,
-        message: message.trim() || null,
-        status: "pending",
+    const { data: result, error: functionError } =
+      await supabase.functions.invoke("submit-talkback", {
+        body: {
+          name: name.trim() || null,
+          song: song.trim() || null,
+          artist: artist.trim() || null,
+          message: message.trim() || null,
+        },
       });
 
     setSubmitting(false);
 
-    if (insertError) {
+    if (functionError) {
       console.error(
-        "[Supabase] Talkback submission failed:",
-        insertError
+        "[Talkback] Submission failed:",
+        functionError
       );
 
       setError("Something went wrong. Please try again.");
+      return;
+    }
+
+    if (result?.banned) {
+      setError(
+        "Talkbacks are unavailable from this connection."
+      );
+      return;
+    }
+
+    if (result?.error) {
+      setError(result.error);
       return;
     }
 
