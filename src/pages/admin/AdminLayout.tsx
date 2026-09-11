@@ -1,6 +1,6 @@
 import { NavLink, Outlet, Link } from "react-router-dom";
 import { Logo } from "../../components/layout/Logo";
-import { MiniPlayer } from "../../components/layout/MiniPlayer";
+import { AdminPlayer } from "../../components/player/AdminPlayer";
 import { useAuth } from "../../context/AuthContext";
 import { isAdminEmail } from "../../config/admin";
 
@@ -106,7 +106,7 @@ export function AdminLayout() {
         </main>
       </div>
 
-      <MiniPlayer />
+      <AdminPlayer />
     </div>
   );
 }
