@@ -25,6 +25,8 @@ export function TalkbackModal({
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [talkbacksEnabled, setTalkbacksEnabled] = useState(true);
+  const [loadingSettings, setLoadingSettings] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -53,6 +55,28 @@ export function TalkbackModal({
   }, [open, onClose]);
 
   useEffect(() => {
+    if (!open || !isSupabaseConfigured) return;
+
+    async function loadSettings() {
+      setLoadingSettings(true);
+
+      const { data, error } = await supabase
+        .from("station_settings")
+        .select("talkbacks_enabled")
+        .eq("id", true)
+        .single();
+
+      if (!error && data) {
+        setTalkbacksEnabled(data.talkbacks_enabled);
+      }
+
+      setLoadingSettings(false);
+    }
+
+    loadSettings();
+  }, [open]);
+
+  useEffect(() => {
     if (autoDj) {
       setError("");
       setSuccess(false);
@@ -74,6 +98,13 @@ export function TalkbackModal({
     if (autoDj) {
       setError(
         "Talkback is unavailable while Auto DJ is running."
+      );
+      return;
+    }
+
+    if (!talkbacksEnabled) {
+      setError(
+        "Talkbacks are currently closed. Please check back later."
       );
       return;
     }
@@ -120,6 +151,14 @@ export function TalkbackModal({
               return;
             }
 
+            if (errorData?.disabled) {
+              setTalkbacksEnabled(false);
+              setError(
+                "Talkbacks are currently closed. Please check back later."
+              );
+              return;
+            }
+
             if (errorData?.error) {
               setError(errorData.error);
               return;
@@ -139,6 +178,14 @@ export function TalkbackModal({
       if (result?.banned) {
         setError(
           "Talkbacks are unavailable from this connection."
+        );
+        return;
+      }
+
+      if (result?.disabled) {
+        setTalkbacksEnabled(false);
+        setError(
+          "Talkbacks are currently closed. Please check back later."
         );
         return;
       }
@@ -168,6 +215,9 @@ export function TalkbackModal({
       onClose();
     }
   }
+
+  const showClosed =
+    !loadingSettings && !talkbacksEnabled && !autoDj;
 
   return createPortal(
     <div
@@ -216,144 +266,198 @@ export function TalkbackModal({
           </button>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-5 p-6"
-        >
-          <p className="text-sm leading-6 text-ink-faint">
-            Send us a message or request a song. Everything is
-            optional — just send whatever you want us to hear.
-          </p>
-
-          {autoDj && (
-            <div className="rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink-faint">
-              Talkbacks are currently unavailable while Auto DJ
-              is running.
+        {loadingSettings ? (
+          <div className="p-8 text-center">
+            <p className="text-sm text-ink-faint">
+              Checking Talkback availability...
+            </p>
+          </div>
+        ) : showClosed ? (
+          <div className="p-8 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-base">
+              <svg
+                width="26"
+                height="26"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <rect
+                  x="5"
+                  y="10"
+                  width="14"
+                  height="10"
+                  rx="2"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  className="text-lime"
+                />
+                <path
+                  d="M8 10V7.5C8 5.57 9.57 4 11.5 4h1C14.43 4 16 5.57 16 7.5V10"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  className="text-lime"
+                />
+              </svg>
             </div>
-          )}
 
-          <div>
-            <label
-              htmlFor="talkback-name"
-              className="mb-2 block text-sm font-medium text-ink"
-            >
-              Your name
-              <span className="ml-1 text-xs text-ink-faint">
-                (optional)
-              </span>
-            </label>
+            <h3 className="mt-5 font-display text-2xl text-ink">
+              Talkbacks are closed
+            </h3>
 
-            <input
-              id="talkback-name"
-              type="text"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Your name"
-              maxLength={100}
-              className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
-            />
-          </div>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-faint">
+              Talkbacks are currently unavailable. Please check
+              back later.
+            </p>
 
-          <div>
-            <label
-              htmlFor="talkback-song"
-              className="mb-2 block text-sm font-medium text-ink"
-            >
-              Song
-              <span className="ml-1 text-xs text-ink-faint">
-                (optional)
-              </span>
-            </label>
-
-            <input
-              id="talkback-song"
-              type="text"
-              value={song}
-              onChange={(event) => setSong(event.target.value)}
-              placeholder="Song title"
-              maxLength={200}
-              className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="talkback-artist"
-              className="mb-2 block text-sm font-medium text-ink"
-            >
-              Artist
-              <span className="ml-1 text-xs text-ink-faint">
-                (optional)
-              </span>
-            </label>
-
-            <input
-              id="talkback-artist"
-              type="text"
-              value={artist}
-              onChange={(event) => setArtist(event.target.value)}
-              placeholder="Artist name"
-              maxLength={200}
-              className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="talkback-message"
-              className="mb-2 block text-sm font-medium text-ink"
-            >
-              Message
-              <span className="ml-1 text-xs text-ink-faint">
-                (optional)
-              </span>
-            </label>
-
-            <textarea
-              id="talkback-message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder="Write a message to Luma..."
-              rows={4}
-              maxLength={1000}
-              className="w-full resize-none rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
-            />
-          </div>
-
-          {error && (
-            <div className="rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink-faint">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="rounded-xl border border-lime/30 bg-lime/5 px-4 py-3 text-sm text-lime">
-              Your Talkback has been sent to the Luma team!
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-1">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-xl border border-base-line px-5 py-3 text-sm font-medium text-ink transition-colors hover:border-lime hover:text-lime"
+              className="mt-6 rounded-xl border border-base-line px-5 py-3 text-sm font-medium text-ink transition-colors hover:border-lime hover:text-lime"
             >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              disabled={submitting || autoDj}
-              className="flex-1 rounded-xl bg-lime px-5 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {autoDj
-                ? "Unavailable"
-                : submitting
-                  ? "Sending..."
-                  : "Send Talkback"}
+              Close
             </button>
           </div>
-        </form>
+        ) : (
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-5 p-6"
+          >
+            <p className="text-sm leading-6 text-ink-faint">
+              Send us a message or request a song. Everything is
+              optional — just send whatever you want us to hear.
+            </p>
+
+            {autoDj && (
+              <div className="rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink-faint">
+                Talkbacks are currently unavailable while Auto DJ
+                is running.
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="talkback-name"
+                className="mb-2 block text-sm font-medium text-ink"
+              >
+                Your name
+                <span className="ml-1 text-xs text-ink-faint">
+                  (optional)
+                </span>
+              </label>
+
+              <input
+                id="talkback-name"
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Your name"
+                maxLength={100}
+                className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="talkback-song"
+                className="mb-2 block text-sm font-medium text-ink"
+              >
+                Song
+                <span className="ml-1 text-xs text-ink-faint">
+                  (optional)
+                </span>
+              </label>
+
+              <input
+                id="talkback-song"
+                type="text"
+                value={song}
+                onChange={(event) => setSong(event.target.value)}
+                placeholder="Song title"
+                maxLength={200}
+                className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="talkback-artist"
+                className="mb-2 block text-sm font-medium text-ink"
+              >
+                Artist
+                <span className="ml-1 text-xs text-ink-faint">
+                  (optional)
+                </span>
+              </label>
+
+              <input
+                id="talkback-artist"
+                type="text"
+                value={artist}
+                onChange={(event) => setArtist(event.target.value)}
+                placeholder="Artist name"
+                maxLength={200}
+                className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="talkback-message"
+                className="mb-2 block text-sm font-medium text-ink"
+              >
+                Message
+                <span className="ml-1 text-xs text-ink-faint">
+                  (optional)
+                </span>
+              </label>
+
+              <textarea
+                id="talkback-message"
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Write a message to Luma..."
+                rows={4}
+                maxLength={1000}
+                className="w-full resize-none rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink-faint">
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="rounded-xl border border-lime/30 bg-lime/5 px-4 py-3 text-sm text-lime">
+                Your Talkback has been sent to the Luma team!
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-xl border border-base-line px-5 py-3 text-sm font-medium text-ink transition-colors hover:border-lime hover:text-lime"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                disabled={submitting || autoDj}
+                className="flex-1 rounded-xl bg-lime px-5 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {autoDj
+                  ? "Unavailable"
+                  : submitting
+                    ? "Sending..."
+                    : "Send Talkback"}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>,
     document.body
