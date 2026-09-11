@@ -1,5 +1,5 @@
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   supabase,
@@ -10,6 +10,22 @@ interface TalkbackModalProps {
   open: boolean;
   onClose: () => void;
   autoDj: boolean;
+}
+
+interface SongResult {
+  trackName: string;
+  artistName: string;
+  collectionName?: string;
+  artworkUrl100?: string;
+}
+
+declare global {
+  interface Window {
+    __lumaSongSearch?: (data: {
+      resultCount: number;
+      results: SongResult[];
+    }) => void;
+  }
 }
 
 export function TalkbackModal({
@@ -25,8 +41,17 @@ export function TalkbackModal({
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
   const [talkbacksEnabled, setTalkbacksEnabled] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(false);
+
+  const [songSearch, setSongSearch] = useState("");
+  const [songResults, setSongResults] = useState<SongResult[]>([]);
+  const [searchingSongs, setSearchingSongs] = useState(false);
+  const [showSongResults, setShowSongResults] = useState(false);
+
+  const searchTimeout = useRef<number | null>(null);
+  const searchRequest = useRef(0);
 
   useEffect(() => {
     if (!open) return;
@@ -83,8 +108,124 @@ export function TalkbackModal({
     }
   }, [autoDj]);
 
-  if (!open) {
-    return null;
+  useEffect(() => {
+    if (!open) {
+      setSongResults([]);
+      setShowSongResults(false);
+      setSearchingSongs(false);
+      return;
+    }
+
+    const query = songSearch.trim();
+
+    if (query.length < 2) {
+      setSongResults([]);
+      setShowSongResults(false);
+      setSearchingSongs(false);
+      return;
+    }
+
+    if (searchTimeout.current) {
+      window.clearTimeout(searchTimeout.current);
+    }
+
+    searchTimeout.current = window.setTimeout(() => {
+      searchSongs(query);
+    }, 450);
+
+    return () => {
+      if (searchTimeout.current) {
+        window.clearTimeout(searchTimeout.current);
+      }
+    };
+  }, [songSearch, open]);
+
+  async function searchSongs(query: string) {
+    const requestId = ++searchRequest.current;
+
+    setSearchingSongs(true);
+    setShowSongResults(true);
+
+    try {
+      const callbackName = `__lumaSongSearch_${Date.now()}_${Math.random()
+        .toString(36)
+        .slice(2)}`;
+
+      const result = await new Promise<{
+        resultCount: number;
+        results: SongResult[];
+      }>((resolve, reject) => {
+        const timeout = window.setTimeout(() => {
+          delete (window as any)[callbackName];
+          script.remove();
+          reject(new Error("Song search timed out."));
+        }, 8000);
+
+        const script = document.createElement("script");
+
+        (window as any)[callbackName] = (
+          data: {
+            resultCount: number;
+            results: SongResult[];
+          }
+        ) => {
+          window.clearTimeout(timeout);
+          delete (window as any)[callbackName];
+          script.remove();
+          resolve(data);
+        };
+
+        script.onerror = () => {
+          window.clearTimeout(timeout);
+          delete (window as any)[callbackName];
+          script.remove();
+          reject(new Error("Song search failed."));
+        };
+
+        script.src =
+          `https://itunes.apple.com/search?term=${encodeURIComponent(
+            query
+          )}` +
+          `&country=GB` +
+          `&media=music` +
+          `&entity=song` +
+          `&limit=8` +
+          `&lang=en_gb` +
+          `&callback=${callbackName}`;
+
+        document.body.appendChild(script);
+      });
+
+      if (requestId !== searchRequest.current) {
+        return;
+      }
+
+      setSongResults(result.results || []);
+    } catch {
+      if (requestId === searchRequest.current) {
+        setSongResults([]);
+      }
+    } finally {
+      if (requestId === searchRequest.current) {
+        setSearchingSongs(false);
+      }
+    }
+  }
+
+  function selectSong(result: SongResult) {
+    setSong(result.trackName);
+    setArtist(result.artistName);
+    setSongSearch(result.trackName);
+    setSongResults([]);
+    setShowSongResults(false);
+  }
+
+  function clearSongSelection() {
+    setSong("");
+    setArtist("");
+    setSongSearch("");
+    setSongResults([]);
+    setShowSongResults(false);
   }
 
   async function handleSubmit(
@@ -199,6 +340,9 @@ export function TalkbackModal({
       setSong("");
       setArtist("");
       setMessage("");
+      setSongSearch("");
+      setSongResults([]);
+      setShowSongResults(false);
       setSuccess(true);
     } catch (error) {
       console.error("[Talkback] Submission failed:", error);
@@ -214,6 +358,10 @@ export function TalkbackModal({
     if (event.target === event.currentTarget) {
       onClose();
     }
+  }
+
+  if (!open) {
+    return null;
   }
 
   const showClosed =
@@ -335,26 +483,109 @@ export function TalkbackModal({
               </div>
             )}
 
-            <div>
+            <div className="relative">
               <label
-                htmlFor="talkback-name"
+                htmlFor="talkback-song-search"
                 className="mb-2 block text-sm font-medium text-ink"
               >
-                Your name
+                Song
                 <span className="ml-1 text-xs text-ink-faint">
                   (optional)
                 </span>
               </label>
 
-              <input
-                id="talkback-name"
-                type="text"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Your name"
-                maxLength={100}
-                className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
-              />
+              <div className="relative">
+                <input
+                  id="talkback-song-search"
+                  type="text"
+                  value={songSearch}
+                  onChange={(event) => {
+                    setSongSearch(event.target.value);
+                    setShowSongResults(true);
+                  }}
+                  onFocus={() => {
+                    if (songResults.length > 0) {
+                      setShowSongResults(true);
+                    }
+                  }}
+                  placeholder="Search for a song..."
+                  maxLength={200}
+                  autoComplete="off"
+                  className="w-full rounded-xl border border-base-line bg-base px-4 py-3 pr-10 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
+                />
+
+                {songSearch && (
+                  <button
+                    type="button"
+                    onClick={clearSongSelection}
+                    aria-label="Clear song"
+                    className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-faint transition-colors hover:text-lime"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <path
+                        d="M6 6L18 18M18 6L6 18"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {showSongResults && (
+                <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-base-line bg-base-panel shadow-xl">
+                  {searchingSongs ? (
+                    <div className="px-4 py-4 text-sm text-ink-faint">
+                      Searching...
+                    </div>
+                  ) : songResults.length > 0 ? (
+                    <div className="max-h-72 overflow-y-auto">
+                      {songResults.map((result, index) => (
+                        <button
+                          key={`${result.trackName}-${result.artistName}-${index}`}
+                          type="button"
+                          onClick={() => selectSong(result)}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-base"
+                        >
+                          {result.artworkUrl100 ? (
+                            <img
+                              src={result.artworkUrl100}
+                              alt=""
+                              className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 shrink-0 rounded-lg bg-base" />
+                          )}
+
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-ink">
+                              {result.trackName}
+                            </p>
+
+                            <p className="truncate text-xs text-ink-faint">
+                              {result.artistName}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : songSearch.trim().length >= 2 ? (
+                    <div className="px-4 py-4 text-sm text-ink-faint">
+                      No songs found. You can enter the song manually.
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              <p className="mt-2 text-xs text-ink-faint">
+                Search for a song or enter it manually.
+              </p>
             </div>
 
             <div>
@@ -362,7 +593,7 @@ export function TalkbackModal({
                 htmlFor="talkback-song"
                 className="mb-2 block text-sm font-medium text-ink"
               >
-                Song
+                Song title
                 <span className="ml-1 text-xs text-ink-faint">
                   (optional)
                 </span>
@@ -397,6 +628,28 @@ export function TalkbackModal({
                 onChange={(event) => setArtist(event.target.value)}
                 placeholder="Artist name"
                 maxLength={200}
+                className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="talkback-name"
+                className="mb-2 block text-sm font-medium text-ink"
+              >
+                Your name
+                <span className="ml-1 text-xs text-ink-faint">
+                  (optional)
+                </span>
+              </label>
+
+              <input
+                id="talkback-name"
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Your name"
+                maxLength={100}
                 className="w-full rounded-xl border border-base-line bg-base px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-lime"
               />
             </div>
