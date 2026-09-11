@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import {
   supabase,
@@ -11,6 +12,14 @@ type Request = {
   artist: string | null;
   message: string | null;
   status: string;
+  ip_address: string | null;
+  created_at: string;
+};
+
+type BannedIp = {
+  id: string;
+  ip_address: string;
+  reason: string | null;
   created_at: string;
 };
 
@@ -23,6 +32,7 @@ const statuses = [
 
 export function RequestsAdmin() {
   const [requests, setRequests] = useState<Request[]>([]);
+  const [bannedIps, setBannedIps] = useState<BannedIp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -35,24 +45,44 @@ export function RequestsAdmin() {
     setLoading(true);
     setError("");
 
-    const { data, error: fetchError } = await supabase
-      .from("requests")
-      .select(
-        "id, name, song, artist, message, status, created_at"
-      )
-      .order("created_at", { ascending: false });
+    const [
+      { data: requestData, error: requestError },
+      { data: bannedData, error: bannedError },
+    ] = await Promise.all([
+      supabase
+        .from("requests")
+        .select(
+          "id, name, song, artist, message, status, ip_address, created_at"
+        )
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("banned_ips")
+        .select("id, ip_address, reason, created_at")
+        .order("created_at", { ascending: false }),
+    ]);
 
-    if (fetchError) {
+    if (requestError) {
       console.error(
         "[Supabase] Failed to load Talkbacks:",
-        fetchError
+        requestError
       );
       setError("Unable to load Talkbacks.");
       setLoading(false);
       return;
     }
 
-    setRequests(data ?? []);
+    if (bannedError) {
+      console.error(
+        "[Supabase] Failed to load banned IPs:",
+        bannedError
+      );
+      setError("Unable to load IP bans.");
+      setLoading(false);
+      return;
+    }
+
+    setRequests(requestData ?? []);
+    setBannedIps(bannedData ?? []);
     setLoading(false);
   }
 
@@ -132,6 +162,88 @@ export function RequestsAdmin() {
     );
   }
 
+  async function banIp(ip: string | null) {
+    if (!ip || ip === "unknown") {
+      setError("This Talkback does not have a usable IP address.");
+      return;
+    }
+
+    if (
+      bannedIps.some(
+        (banned) => banned.ip_address === ip
+      )
+    ) {
+      setError("This IP address is already banned.");
+      return;
+    }
+
+    const reason = window.prompt(
+      `Reason for banning ${ip}?`
+    );
+
+    if (reason === null) {
+      return;
+    }
+
+    setError("");
+
+    const { data, error: banError } = await supabase
+      .from("banned_ips")
+      .insert({
+        ip_address: ip,
+        reason: reason.trim() || null,
+      })
+      .select("id, ip_address, reason, created_at")
+      .single();
+
+    if (banError) {
+      console.error(
+        "[Supabase] Failed to ban IP:",
+        banError
+      );
+      setError("Unable to ban this IP address.");
+      return;
+    }
+
+    setBannedIps((current) => [data, ...current]);
+  }
+
+  async function unbanIp(id: string) {
+    if (!window.confirm("Unban this IP address?")) {
+      return;
+    }
+
+    setError("");
+
+    const { error: deleteError } = await supabase
+      .from("banned_ips")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      console.error(
+        "[Supabase] Failed to unban IP:",
+        deleteError
+      );
+      setError("Unable to unban this IP address.");
+      return;
+    }
+
+    setBannedIps((current) =>
+      current.filter((banned) => banned.id !== id)
+    );
+  }
+
+  function isIpBanned(ip: string | null) {
+    if (!ip) {
+      return false;
+    }
+
+    return bannedIps.some(
+      (banned) => banned.ip_address === ip
+    );
+  }
+
   function formatDate(date: string) {
     return new Date(date).toLocaleString("en-GB", {
       dateStyle: "medium",
@@ -171,6 +283,59 @@ export function RequestsAdmin() {
           {error}
         </div>
       )}
+
+      <div className="mt-8 rounded-2xl border border-base-line bg-base-panel p-5 sm:p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-display text-2xl text-ink">
+              IP bans
+            </h2>
+
+            <p className="mt-1 text-sm text-ink-faint">
+              These IP addresses are blocked from sending Talkbacks.
+            </p>
+          </div>
+
+          <span className="rounded-full border border-base-line bg-base px-3 py-1 text-xs font-medium text-lime">
+            {bannedIps.length}
+          </span>
+        </div>
+
+        {bannedIps.length === 0 ? (
+          <p className="mt-5 text-sm text-ink-faint">
+            No IP addresses are currently banned.
+          </p>
+        ) : (
+          <div className="mt-5 space-y-2">
+            {bannedIps.map((banned) => (
+              <div
+                key={banned.id}
+                className="flex flex-col gap-3 rounded-xl border border-base-line bg-base px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="font-mono text-sm text-ink">
+                    {banned.ip_address}
+                  </p>
+
+                  {banned.reason && (
+                    <p className="mt-1 text-xs text-ink-faint">
+                      {banned.reason}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => unbanIp(banned.id)}
+                  className="rounded-lg border border-lime/30 px-3 py-2 text-xs font-medium text-lime transition-colors hover:border-lime"
+                >
+                  Unban
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {loading ? (
         <div className="mt-10 rounded-2xl border border-base-line bg-base-panel p-8 text-center text-sm text-ink-faint">
@@ -219,6 +384,30 @@ export function RequestsAdmin() {
                       : "Anonymous"}{" "}
                     · {formatDate(request.created_at)}
                   </p>
+
+                  {request.ip_address && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="rounded-lg border border-base-line bg-base px-2.5 py-1 font-mono text-xs text-ink-faint">
+                        {request.ip_address}
+                      </span>
+
+                      {isIpBanned(request.ip_address) ? (
+                        <span className="rounded-lg border border-red-500/30 bg-red-500/5 px-2.5 py-1 text-xs font-medium text-red-400">
+                          IP banned
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            banIp(request.ip_address)
+                          }
+                          className="rounded-lg border border-red-500/30 px-2.5 py-1 text-xs font-medium text-red-400 transition-colors hover:border-red-400 hover:bg-red-500/5"
+                        >
+                          Ban IP
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <span
