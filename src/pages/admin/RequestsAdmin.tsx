@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import {
   supabase,
@@ -61,10 +60,31 @@ export function RequestsAdmin() {
     loadRequests();
   }, []);
 
-  async function updateStatus(
-    id: string,
-    status: string
-  ) {
+  async function updateStatus(id: string, status: string) {
+    setError("");
+
+    if (status === "played" || status === "rejected") {
+      const { error: deleteError } = await supabase
+        .from("requests")
+        .delete()
+        .eq("id", id);
+
+      if (deleteError) {
+        console.error(
+          "[Supabase] Failed to delete Talkback:",
+          deleteError
+        );
+        setError("Unable to remove Talkback.");
+        return;
+      }
+
+      setRequests((current) =>
+        current.filter((request) => request.id !== id)
+      );
+
+      return;
+    }
+
     const { error: updateError } = await supabase
       .from("requests")
       .update({ status })
@@ -139,9 +159,10 @@ export function RequestsAdmin() {
         <button
           type="button"
           onClick={loadRequests}
-          className="rounded-xl border border-base-line px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-lime hover:text-lime"
+          disabled={loading}
+          className="rounded-xl border border-base-line px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-lime hover:text-lime disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Refresh
+          {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
@@ -255,4 +276,3 @@ export function RequestsAdmin() {
     </div>
   );
 }
-
