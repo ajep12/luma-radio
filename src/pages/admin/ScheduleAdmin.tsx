@@ -13,6 +13,13 @@ type ScheduleEntry = {
   show_name: string;
 };
 
+type Show = {
+  id: string;
+  name: string;
+  time: string;
+  days: string[];
+};
+
 const days = [
   "Monday",
   "Tuesday",
@@ -26,7 +33,6 @@ const days = [
 function getMonday(date: Date) {
   const result = new Date(date);
   const day = result.getDay();
-
   const diff = day === 0 ? -6 : 1 - day;
 
   result.setDate(result.getDate() + diff);
@@ -35,12 +41,6 @@ function getMonday(date: Date) {
   return result;
 }
 
-/*
- * IMPORTANT:
- * Don't use toISOString() here.
- * It converts the date to UTC and can move UK dates
- * backwards/forwards by one day.
- */
 function formatDate(date: Date) {
   return `${date.getFullYear()}-${String(
     date.getMonth() + 1
@@ -55,6 +55,57 @@ function getDateForDay(monday: Date, index: number) {
   return date;
 }
 
+function parseShowTime(time: string) {
+  const cleaned = time.trim();
+
+  const parts = cleaned
+    .split(/\s*(?:-|–|—|to)\s*/i)
+    .map((part) => part.trim());
+
+  const start = parts[0] ?? "";
+  const end = parts[1] ?? "";
+
+  const normaliseTime = (value: string) => {
+    const match = value.match(
+      /^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i
+    );
+
+    if (!match) {
+      return "";
+    }
+
+    let hour = Number(match[1]);
+    const minute = match[2];
+    const period = match[3]?.toUpperCase();
+
+    if (period === "PM" && hour < 12) {
+      hour += 12;
+    }
+
+    if (period === "AM" && hour === 12) {
+      hour = 0;
+    }
+
+    if (hour > 23 || Number(minute) > 59) {
+      return "";
+    }
+
+    return `${String(hour).padStart(2, "0")}:${minute}`;
+  };
+
+  return {
+    start_time: normaliseTime(start),
+    end_time: end ? normaliseTime(end) || null : null,
+  };
+}
+
+function showRunsOnDay(show: Show, day: string) {
+  return show.days.some(
+    (showDay) =>
+      showDay.trim().toLowerCase() === day.toLowerCase()
+  );
+}
+
 export function ScheduleAdmin() {
   const [monday, setMonday] = useState(() =>
     getMonday(new Date())
@@ -64,7 +115,10 @@ export function ScheduleAdmin() {
     []
   );
 
+  const [shows, setShows] = useState<Show[]>([]);
+
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [editing, setEditing] = useState<string | null>(
@@ -82,12 +136,13 @@ export function ScheduleAdmin() {
   });
 
   useEffect(() => {
-    loadSchedule();
+    loadData();
   }, [monday]);
 
-  async function loadSchedule() {
+  async function loadData() {
     if (!isSupabaseConfigured) {
       setSchedule([]);
+      setShows([]);
       setLoading(false);
       return;
     }
@@ -97,32 +152,166 @@ export function ScheduleAdmin() {
     const weekEnd = new Date(monday);
     weekEnd.setDate(monday.getDate() + 6);
 
-    const { data, error } = await supabase
-      .from("schedule")
-      .select(
-        "id, date, start_time, end_time, show_name"
-      )
-      .gte("date", formatDate(monday))
-      .lte("date", formatDate(weekEnd))
-      .order("date")
-      .order("start_time");
+    const [scheduleResult, showsResult] =
+      await Promise.all([
+        supabase
+          .from("schedule")
+          .select(
+            "id, date, start_time, end_time, show_name"
+          )
+          .gte("date", formatDate(monday))
+          .lte("date", formatDate(weekEnd))
+          .order("date")
+          .order("start_time"),
 
-    if (error) {
+        supabase
+          .from("shows")
+          .select("id, name, time, days")
+          .order("name"),
+      ]);
+
+    if (scheduleResult.error) {
       console.error(
-        "[Schedule] Failed to load:",
-        error
+        "[Schedule] Failed to load schedule:",
+        scheduleResult.error
       );
 
       setSchedule([]);
     } else {
       setSchedule(
-        Array.isArray(data)
-          ? (data as ScheduleEntry[])
+        Array.isArray(scheduleResult.data)
+          ? (scheduleResult.data as ScheduleEntry[])
+          : []
+      );
+    }
+
+    if (showsResult.error) {
+      console.error(
+        "[Schedule] Failed to load shows:",
+        showsResult.error
+      );
+
+      setShows([]);
+    } else {
+      setShows(
+        Array.isArray(showsResult.data)
+          ? (showsResult.data as Show[])
           : []
       );
     }
 
     setLoading(false);
+  }
+
+  async function generateWeek() {
+    if (generating) return;
+
+    if (shows.length === 0) {
+      alert("No shows are available to schedule.");
+      return;
+    }
+
+    setGenerating(true);
+
+    try {
+      const entries: {
+        date: string;
+        start_time: string;
+        end_time: string | null;
+        show_name: string;
+      }[] = [];
+
+      for (let index = 0; index < days.length; index++) {
+        const dayName = days[index];
+        const date = getDateForDay(monday, index);
+        const dateString = formatDate(date);
+
+        for (const show of shows) {
+          if (!show.name || !show.time) {
+            continue;
+          }
+
+          if (!showRunsOnDay(show, dayName)) {
+            continue;
+          }
+
+          const parsedTime = parseShowTime(show.time);
+
+          if (!parsedTime.start_time) {
+            console.error(
+              `[Schedule] Could not parse time for "${show.name}":`,
+              show.time
+            );
+            continue;
+          }
+
+          entries.push({
+            date: dateString,
+            start_time: parsedTime.start_time,
+            end_time: parsedTime.end_time,
+            show_name: show.name,
+          });
+        }
+      }
+
+      if (entries.length === 0) {
+        alert(
+          "No scheduled shows were found for this week. Check the days and times in your shows."
+        );
+        setGenerating(false);
+        return;
+      }
+
+      const existing = new Set(
+        schedule.map(
+          (slot) =>
+            `${slot.date}|${slot.start_time.slice(
+              0,
+              5
+            )}|${slot.show_name}`
+        )
+      );
+
+      const newEntries = entries.filter(
+        (entry) =>
+          !existing.has(
+            `${entry.date}|${entry.start_time}|${entry.show_name}`
+          )
+      );
+
+      if (newEntries.length === 0) {
+        alert(
+          "This week's schedule has already been generated."
+        );
+        setGenerating(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("schedule")
+        .insert(newEntries);
+
+      if (error) {
+        console.error(
+          "[Schedule] Failed to generate week:",
+          error
+        );
+
+        alert(error.message);
+        setGenerating(false);
+        return;
+      }
+
+      await loadData();
+
+      alert(
+        `${newEntries.length} schedule ${
+          newEntries.length === 1 ? "slot" : "slots"
+        } added.`
+      );
+    } finally {
+      setGenerating(false);
+    }
   }
 
   function startAdding(date: string) {
@@ -212,7 +401,7 @@ export function ScheduleAdmin() {
       }
     }
 
-    await loadSchedule();
+    await loadData();
 
     cancelForm();
     setSaving(false);
@@ -242,7 +431,7 @@ export function ScheduleAdmin() {
       return;
     }
 
-    await loadSchedule();
+    await loadData();
   }
 
   function previousWeek() {
@@ -268,49 +457,73 @@ export function ScheduleAdmin() {
         subtitle="Build the weekly on-air lineup."
       />
 
-      {/* Week controls */}
-      <div className="mb-6 flex items-center justify-between gap-3">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <button
           type="button"
-          onClick={previousWeek}
-          className="rounded-full border border-base-line bg-base-panel px-4 py-2 text-sm text-ink-soft hover:text-ink"
+          onClick={generateWeek}
+          disabled={generating || loading}
+          className="rounded-full bg-lime px-5 py-2.5 text-sm font-semibold text-coal disabled:cursor-not-allowed disabled:opacity-50"
         >
-          ← Previous
+          {generating
+            ? "Generating..."
+            : "Generate week"}
         </button>
 
-        <div className="text-center">
-          <p className="font-display text-sm text-ink">
-            {monday.toLocaleDateString("en-GB", {
-              day: "numeric",
-              month: "short",
-            })}
-            {" – "}
-            {getDateForDay(monday, 6).toLocaleDateString(
-              "en-GB",
-              {
+        <div className="flex items-center justify-between gap-3 sm:justify-end">
+          <button
+            type="button"
+            onClick={previousWeek}
+            className="rounded-full border border-base-line bg-base-panel px-4 py-2 text-sm text-ink-soft hover:text-ink"
+          >
+            ← Previous
+          </button>
+
+          <div className="text-center">
+            <p className="font-display text-sm text-ink">
+              {monday.toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "short",
+              })}
+              {" – "}
+              {getDateForDay(
+                monday,
+                6
+              ).toLocaleDateString("en-GB", {
                 day: "numeric",
                 month: "short",
                 year: "numeric",
-              }
-            )}
-          </p>
+              })}
+            </p>
+
+            <button
+              type="button"
+              onClick={thisWeek}
+              className="mt-1 text-xs text-lime hover:underline"
+            >
+              This week
+            </button>
+          </div>
 
           <button
             type="button"
-            onClick={thisWeek}
-            className="mt-1 text-xs text-lime hover:underline"
+            onClick={nextWeek}
+            className="rounded-full border border-base-line bg-base-panel px-4 py-2 text-sm text-ink-soft hover:text-ink"
           >
-            This week
+            Next →
           </button>
         </div>
+      </div>
 
-        <button
-          type="button"
-          onClick={nextWeek}
-          className="rounded-full border border-base-line bg-base-panel px-4 py-2 text-sm text-ink-soft hover:text-ink"
-        >
-          Next →
-        </button>
+      <div className="mb-6 rounded-2xl border border-base-line bg-base-panel px-5 py-4">
+        <p className="text-sm font-medium text-ink">
+          Automatic scheduling
+        </p>
+
+        <p className="mt-1 text-xs leading-5 text-ink-faint">
+          Generate this week's schedule from the days and times
+          set on your shows. Existing schedule slots won't be
+          duplicated.
+        </p>
       </div>
 
       {loading ? (
@@ -337,7 +550,6 @@ export function ScheduleAdmin() {
 
             return (
               <div key={dateString}>
-                {/* Day heading */}
                 <div className="mb-2 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-ink-soft">
@@ -363,7 +575,6 @@ export function ScheduleAdmin() {
                   </button>
                 </div>
 
-                {/* Slots */}
                 <div className="divide-y divide-base-line overflow-hidden rounded-2xl border border-base-line">
                   {slots.length === 0 &&
                   !isAdding ? (
@@ -429,7 +640,6 @@ export function ScheduleAdmin() {
                     )
                   )}
 
-                  {/* Add form */}
                   {isAdding && (
                     <ScheduleForm
                       form={form}
@@ -478,7 +688,6 @@ function ScheduleForm({
 }) {
   return (
     <div className="grid gap-3 p-5 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
-      {/* Show name */}
       <label className="text-xs text-ink-faint">
         Show name
 
@@ -496,7 +705,6 @@ function ScheduleForm({
         />
       </label>
 
-      {/* Start */}
       <label className="text-xs text-ink-faint">
         Start
 
@@ -513,7 +721,6 @@ function ScheduleForm({
         />
       </label>
 
-      {/* End */}
       <label className="text-xs text-ink-faint">
         End
 
@@ -530,7 +737,6 @@ function ScheduleForm({
         />
       </label>
 
-      {/* Buttons */}
       <div className="flex gap-2">
         <button
           type="button"
